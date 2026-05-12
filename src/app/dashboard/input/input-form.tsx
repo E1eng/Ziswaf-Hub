@@ -1,0 +1,217 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle } from "lucide-react";
+
+interface Props {
+  regions: { id: string; name: string }[];
+  categories: { id: string; name: string; category: string }[];
+  sectors: { id: string; name: string; code: string }[];
+}
+
+export function InputDataForm({ regions, categories, sectors }: Props) {
+  const [dataType, setDataType] = useState<"pengumpulan" | "penyaluran">("pengumpulan");
+  const [regionId, setRegionId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [sectorId, setSectorId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [count, setCount] = useState("");
+  const [month, setMonth] = useState("");
+  const [year, setYear] = useState("2024");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+
+    // In real app, this would call a server action or API route
+    // For hackathon demo, we simulate success
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    setSuccess(true);
+    setLoading(false);
+  }
+
+  function reset() {
+    setSuccess(false);
+    setAmount("");
+    setCount("");
+    setMonth("");
+    setRegionId("");
+    setCategoryId("");
+    setSectorId("");
+  }
+
+  if (success) {
+    return (
+      <Card className="max-w-lg">
+        <CardContent className="pt-6 text-center space-y-4">
+          <CheckCircle className="size-12 mx-auto text-green-600" />
+          <h3 className="text-lg font-semibold">Data Berhasil Disubmit</h3>
+          <p className="text-sm text-muted-foreground">
+            Data {dataType} Anda telah tercatat. Terima kasih atas transparansi data lembaga Anda.
+          </p>
+          <Button onClick={reset} variant="outline">Input Data Lagi</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="max-w-lg">
+      <CardHeader>
+        <CardTitle>Input Data {dataType === "pengumpulan" ? "Pengumpulan" : "Penyaluran"}</CardTitle>
+        <CardDescription>
+          Pilih jenis data dan isi form di bawah
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Data Type Toggle */}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={dataType === "pengumpulan" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDataType("pengumpulan")}
+            >
+              Pengumpulan
+            </Button>
+            <Button
+              type="button"
+              variant={dataType === "penyaluran" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDataType("penyaluran")}
+            >
+              Penyaluran
+            </Button>
+          </div>
+
+          {/* Region */}
+          <div className="space-y-2">
+            <Label>Provinsi</Label>
+            <Select value={regionId} onValueChange={(val) => { if (val) setRegionId(val); }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih provinsi" />
+              </SelectTrigger>
+              <SelectContent>
+                {regions.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Category/Sector */}
+          {dataType === "pengumpulan" ? (
+            <div className="space-y-2">
+              <Label>Kategori ZISWAF</Label>
+              <Select value={categoryId} onValueChange={(val) => { if (val) setCategoryId(val); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih kategori" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                      <Badge variant="outline" className="ml-2 text-[9px]">{c.category}</Badge>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Sektor Penyaluran</Label>
+              <Select value={sectorId} onValueChange={(val) => { if (val) setSectorId(val); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih sektor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sectors.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Amount */}
+          <div className="space-y-2">
+            <Label>Jumlah (Rp)</Label>
+            <Input
+              type="number"
+              placeholder="Contoh: 500000000"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* Count */}
+          <div className="space-y-2">
+            <Label>{dataType === "pengumpulan" ? "Jumlah Donatur" : "Jumlah Penerima Manfaat"}</Label>
+            <Input
+              type="number"
+              placeholder="Contoh: 1000"
+              value={count}
+              onChange={(e) => setCount(e.target.value)}
+            />
+          </div>
+
+          {/* Period */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Bulan</Label>
+              <Select value={month} onValueChange={(val) => { if (val) setMonth(val); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Bulan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {new Date(2024, i).toLocaleString("id-ID", { month: "long" })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Tahun</Label>
+              <Input
+                type="number"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                min={2019}
+                max={2025}
+              />
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full" disabled={loading || !regionId || !amount}>
+            {loading ? "Menyimpan..." : "Submit Data"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
