@@ -9,12 +9,12 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, children }: PageHeaderProps) {
   return (
-    <header className="flex h-14 items-center gap-4 border-b px-6">
+    <header className="flex h-16 items-center gap-4 border-b px-6 bg-card">
       <SidebarTrigger />
       <Separator orientation="vertical" className="h-6" />
       <div className="flex-1">
-        <h1 className="text-sm font-semibold">{title}</h1>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <h1 className="text-lg font-bold">{title}</h1>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       {children}
     </header>

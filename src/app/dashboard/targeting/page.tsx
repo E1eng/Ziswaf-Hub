@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
 import { Target, AlertTriangle, ArrowRight, CheckCircle } from "lucide-react";
+import { PriorityChart } from "@/components/charts/priority-chart";
 
 interface RegionScore {
   region_id: string;
@@ -98,16 +99,16 @@ async function getTargetingData() {
 
     if (score >= 75) {
       level = "sangat_tinggi";
-      recommendation = `Prioritas utama penyaluran. Fokus pada program bantuan langsung (fakir/miskin) dan pemberdayaan ekonomi.`;
+      recommendation = `Daerah ini sangat membutuhkan bantuan. Utamakan program bantuan langsung untuk fakir dan miskin, serta program usaha ekonomi.`;
     } else if (score >= 55) {
       level = "tinggi";
-      recommendation = `Perlu peningkatan penyaluran. Pertimbangkan program pendidikan dan kesehatan untuk dampak jangka panjang.`;
+      recommendation = `Daerah ini masih perlu lebih banyak bantuan. Bisa difokuskan ke program pendidikan dan kesehatan.`;
     } else if (score >= 35) {
       level = "sedang";
-      recommendation = `Distribusi cukup, fokus pada pendayagunaan (program produktif) daripada bantuan konsumtif.`;
+      recommendation = `Bantuan sudah cukup merata. Sebaiknya fokus ke program yang membuat masyarakat lebih mandiri (produktif).`;
     } else {
       level = "rendah";
-      recommendation = `Coverage sudah baik. Optimalkan program existing dan tingkatkan pendayagunaan.`;
+      recommendation = `Penyaluran sudah berjalan baik. Tingkatkan kualitas program yang sudah ada.`;
     }
 
     return { ...p, priority_score: score, priority_level: level, recommendation };
@@ -132,45 +133,62 @@ export default async function TargetingPage() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Targeting Penyaluran"
-        description="Rekomendasi daerah prioritas berdasarkan data kemiskinan, gap zakat, dan penyaluran existing"
+        title="Rekomendasi Daerah Penyaluran"
+        description="Daerah mana yang paling membutuhkan penyaluran ZISWAF? Rekomendasi ini berdasarkan data kemiskinan dan penyaluran yang sudah ada."
       />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-8 space-y-8">
         {/* Summary */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-3">
           <Card className="border-red-200">
             <CardContent className="pt-6 text-center">
-              <AlertTriangle className="size-8 mx-auto text-red-600 mb-2" />
-              <p className="text-3xl font-bold text-red-600">{data.sangatTinggiCount}</p>
-              <p className="text-sm text-muted-foreground mt-1">Provinsi Prioritas Sangat Tinggi</p>
+              <AlertTriangle className="size-10 mx-auto text-red-600 mb-3" />
+              <p className="text-4xl font-bold text-red-600">{data.sangatTinggiCount}</p>
+              <p className="text-base text-muted-foreground mt-2">Provinsi Sangat Butuh Bantuan</p>
             </CardContent>
           </Card>
           <Card className="border-orange-200">
             <CardContent className="pt-6 text-center">
-              <Target className="size-8 mx-auto text-orange-600 mb-2" />
-              <p className="text-3xl font-bold text-orange-600">{data.tinggiCount}</p>
-              <p className="text-sm text-muted-foreground mt-1">Provinsi Prioritas Tinggi</p>
+              <Target className="size-10 mx-auto text-orange-600 mb-3" />
+              <p className="text-4xl font-bold text-orange-600">{data.tinggiCount}</p>
+              <p className="text-base text-muted-foreground mt-2">Provinsi Butuh Bantuan</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6 text-center">
-              <CheckCircle className="size-8 mx-auto text-green-600 mb-2" />
-              <p className="text-3xl font-bold">{data.ranked.length}</p>
-              <p className="text-sm text-muted-foreground mt-1">Total Provinsi Dianalisis</p>
+              <CheckCircle className="size-10 mx-auto text-green-600 mb-3" />
+              <p className="text-4xl font-bold">{data.ranked.length}</p>
+              <p className="text-base text-muted-foreground mt-2">Total Provinsi yang Dinilai</p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Priority Score Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">10 Provinsi Paling Membutuhkan</CardTitle>
+            <CardDescription className="text-sm">Semakin panjang batangnya, semakin besar kebutuhannya</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PriorityChart
+              data={data.ranked.slice(0, 10).map((r) => ({
+                name: r.region_name,
+                score: r.priority_score,
+                level: r.priority_level,
+              }))}
+            />
+          </CardContent>
+        </Card>
 
         {/* Top Recommendations */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Target className="size-5 text-primary" />
-              <CardTitle>Rekomendasi Penyaluran</CardTitle>
+              <Target className="size-6 text-primary" />
+              <CardTitle className="text-xl">Saran Penyaluran</CardTitle>
             </div>
-            <CardDescription>
-              Daerah berikut memiliki kebutuhan tertinggi namun penyaluran masih rendah — prioritaskan penyaluran ke sini
+            <CardDescription className="text-sm">
+              Daerah-daerah berikut masih sangat membutuhkan bantuan ZISWAF (zakat, infaq, sedekah, dan wakaf)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -178,34 +196,34 @@ export default async function TargetingPage() {
               {data.ranked.filter((r) => r.priority_level === "sangat_tinggi" || r.priority_level === "tinggi").slice(0, 7).map((region, idx) => {
                 const cfg = levelConfig[region.priority_level];
                 return (
-                  <div key={region.region_id} className={`p-4 rounded-lg border ${cfg.bg} dark:bg-transparent`}>
+                  <div key={region.region_id} className={`p-5 rounded-xl border ${cfg.bg} dark:bg-transparent`}>
                     <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <span className="text-lg font-bold text-muted-foreground mt-0.5">{idx + 1}</span>
+                      <div className="flex items-start gap-4">
+                        <span className="text-2xl font-bold text-muted-foreground mt-0.5">{idx + 1}</span>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold">{region.region_name}</h4>
-                            <Badge variant={cfg.badge} className="text-[10px]">
+                          <div className="flex items-center gap-3">
+                            <h4 className="text-lg font-semibold">{region.region_name}</h4>
+                            <Badge variant={cfg.badge} className="text-sm">
                               Skor {region.priority_score}
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
                             <span>Kemiskinan: <strong>{formatPct(region.poverty_rate)}</strong></span>
                             <span>Penduduk miskin: <strong>{formatNumber(region.poverty_count)}</strong></span>
-                            <span>Gap: <strong>{formatPct(region.gap_percentage)}</strong></span>
+                            <span>Potensi belum tercapai: <strong>{formatPct(region.gap_percentage)}</strong></span>
                             <span>IPM: <strong>{region.ipm.toFixed(1)}</strong></span>
                           </div>
-                          <div className="flex items-start gap-2 mt-2">
-                            <ArrowRight className="size-4 text-primary mt-0.5 shrink-0" />
-                            <p className="text-sm text-muted-foreground">{region.recommendation}</p>
+                          <div className="flex items-start gap-2 mt-3">
+                            <ArrowRight className="size-5 text-primary mt-0.5 shrink-0" />
+                            <p className="text-base text-muted-foreground">{region.recommendation}</p>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right shrink-0 ml-4">
-                        <p className="text-xs text-muted-foreground">Existing</p>
-                        <p className="text-sm font-medium">{formatRupiah(region.existing_distribution)}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatRupiah(Math.round(region.dist_per_poor))}/miskin
+                      <div className="text-right shrink-0 ml-6">
+                        <p className="text-sm text-muted-foreground">Sudah Disalurkan</p>
+                        <p className="text-base font-semibold">{formatRupiah(region.existing_distribution)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatRupiah(Math.round(region.dist_per_poor))}/orang miskin
                         </p>
                       </div>
                     </div>
@@ -219,22 +237,22 @@ export default async function TargetingPage() {
         {/* Methodology */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Bagaimana Skor Prioritas Dihitung?</CardTitle>
+            <CardTitle className="text-lg">Bagaimana Cara Kami Menilai?</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-4">
               {[
-                { weight: "35%", name: "Kemiskinan", desc: "Tingkat kemiskinan provinsi" },
-                { weight: "30%", name: "Kekurangan Distribusi", desc: "Penyaluran per kapita penduduk miskin (rendah = butuh lebih)" },
-                { weight: "20%", name: "Gap Zakat", desc: "Potensi zakat yang belum terealisasi" },
-                { weight: "15%", name: "IPM Rendah", desc: "Daerah IPM rendah lebih butuh bantuan" },
+                { weight: "35%", name: "Kemiskinan", desc: "Seberapa banyak penduduk miskin di daerah tersebut" },
+                { weight: "30%", name: "Bantuan yang Kurang", desc: "Apakah bantuan yang sudah diberikan masih sedikit" },
+                { weight: "20%", name: "Potensi Belum Tercapai", desc: "Seberapa besar dana ZISWAF yang belum terkumpul" },
+                { weight: "15%", name: "Kualitas Hidup Rendah", desc: "Daerah dengan kualitas hidup (IPM) rendah lebih butuh bantuan" },
               ].map((c) => (
-                <div key={c.name} className="p-3 border rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="secondary" className="text-[10px]">{c.weight}</Badge>
-                    <span className="text-xs font-medium">{c.name}</span>
+                <div key={c.name} className="p-4 border rounded-xl">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="secondary" className="text-sm">{c.weight}</Badge>
+                    <span className="text-sm font-semibold">{c.name}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">{c.desc}</p>
+                  <p className="text-sm text-muted-foreground">{c.desc}</p>
                 </div>
               ))}
             </div>
@@ -244,7 +262,7 @@ export default async function TargetingPage() {
         {/* Full Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Ranking Seluruh Provinsi</CardTitle>
+            <CardTitle className="text-xl">Daftar Lengkap Semua Provinsi</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -255,8 +273,8 @@ export default async function TargetingPage() {
                   <TableHead className="text-center">Prioritas</TableHead>
                   <TableHead className="text-right">Kemiskinan</TableHead>
                   <TableHead className="text-right">Penduduk Miskin</TableHead>
-                  <TableHead className="text-right">Distribusi/Miskin</TableHead>
-                  <TableHead className="text-right">Gap</TableHead>
+                  <TableHead className="text-right">Bantuan/Orang Miskin</TableHead>
+                  <TableHead className="text-right">Potensi Belum Tercapai</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -267,7 +285,7 @@ export default async function TargetingPage() {
                       <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="font-medium">{r.region_name}</TableCell>
                       <TableCell className="text-center">
-                        <Badge variant={cfg.badge} className="text-[10px]">{cfg.label}</Badge>
+                        <Badge variant={cfg.badge} className="text-sm">{cfg.label}</Badge>
                       </TableCell>
                       <TableCell className="text-right">{formatPct(r.poverty_rate)}</TableCell>
                       <TableCell className="text-right">{formatNumber(r.poverty_count)}</TableCell>

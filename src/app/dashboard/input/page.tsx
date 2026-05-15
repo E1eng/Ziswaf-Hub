@@ -24,8 +24,8 @@ export default async function InputPage() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Input Data"
-        description="Submit data pengumpulan atau penyaluran baru"
+        title="Tambah Data"
+        description="Catat data pengumpulan atau penyaluran baru"
       />
       <main className="flex-1 p-6">
         <InputDataForm

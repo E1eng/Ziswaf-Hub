@@ -41,31 +41,31 @@ export default async function LandingPage() {
     <div className="flex flex-col min-h-screen">
       {/* Navbar */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-14 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-            <div className="size-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground text-sm font-bold">Z</span>
+        <div className="container mx-auto flex h-16 items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-2.5 font-bold text-xl">
+            <div className="size-9 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground text-base font-bold">Z</span>
             </div>
             ZISWAF Hub
           </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm">
+          <nav className="hidden md:flex items-center gap-8 text-base">
             <Link href="/analitik" className="text-muted-foreground hover:text-foreground transition-colors">
-              Analitik
+              Data Nasional
             </Link>
             <Link href="/direktori" className="text-muted-foreground hover:text-foreground transition-colors">
               Direktori Lembaga
             </Link>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              className="px-5 py-2.5 text-base font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Masuk
             </Link>
             <Link
               href="/register"
-              className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              className="px-5 py-2.5 text-base font-medium bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors"
             >
               Daftar Lembaga
             </Link>
@@ -74,33 +74,33 @@ export default async function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="flex-1 flex items-center">
-        <div className="container mx-auto px-4 py-20 md:py-32">
-          <div className="max-w-3xl mx-auto text-center space-y-6">
-            <Badge variant="secondary" className="text-sm px-4 py-1">
-              Platform Integrasi ZISWAF Pertama di Indonesia
+      <section className="flex-1 flex items-center bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="container mx-auto px-6 py-28 md:py-40">
+          <div className="max-w-4xl mx-auto text-center space-y-10">
+            <Badge variant="secondary" className="text-base px-5 py-2">
+              Platform ZISWAF Pertama di Indonesia
             </Badge>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
               Salurkan ZISWAF ke{" "}
-              <span className="text-primary">Penerima yang Tepat</span>
+              <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">Penerima yang Tepat</span>
             </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              ZISWAF Hub membantu lembaga pengelola Zakat, Infaq, Sedekah, dan Wakaf
-              menentukan penyaluran berdasarkan data — transparan, terukur, dan tepat sasaran.
+            <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+              ZISWAF Hub membantu lembaga Zakat, Infaq, Sedekah, dan Wakaf
+              menentukan kemana dana harus disalurkan — berdasarkan data, transparan, dan tepat sasaran.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
               <Link
                 href="/register"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-xl text-lg font-semibold hover:bg-primary/90 transition-all hover:shadow-lg hover:shadow-primary/25"
               >
                 Daftarkan Lembaga Anda
-                <ArrowRight className="size-4" />
+                <ArrowRight className="size-5" />
               </Link>
               <Link
                 href="/analitik"
-                className="inline-flex items-center gap-2 px-6 py-3 border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+                className="inline-flex items-center gap-2 px-8 py-4 border-2 rounded-xl text-lg font-medium hover:bg-muted transition-colors"
               >
-                Lihat Analitik Nasional
+                Lihat Data ZISWAF Nasional
               </Link>
             </div>
           </div>
@@ -108,31 +108,31 @@ export default async function LandingPage() {
       </section>
 
       {/* Stats */}
-      <section className="border-t bg-muted/30">
-        <div className="container mx-auto px-4 py-16">
-          <p className="text-center text-sm text-muted-foreground mb-8">
-            Data ZISWAF Nasional Terintegrasi
+      <section className="border-t border-b bg-muted/30">
+        <div className="container mx-auto px-6 py-20">
+          <p className="text-center text-base font-medium text-muted-foreground mb-10">
+            Data ZISWAF Nasional Tahun 2024
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-6 max-w-4xl mx-auto text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-10 max-w-5xl mx-auto text-center">
             <div>
-              <p className="text-2xl md:text-3xl font-bold">{formatRupiah(stats.totalCollection)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Pengumpulan 2024</p>
+              <p className="text-3xl md:text-4xl font-bold">{formatRupiah(stats.totalCollection)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Pengumpulan 2024</p>
             </div>
             <div>
-              <p className="text-2xl md:text-3xl font-bold">{formatRupiah(stats.totalDist)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Penyaluran 2024</p>
+              <p className="text-3xl md:text-4xl font-bold">{formatRupiah(stats.totalDist)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Penyaluran 2024</p>
             </div>
             <div>
-              <p className="text-2xl md:text-3xl font-bold">{formatNumber(stats.totalBenef, true)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Penerima Manfaat</p>
+              <p className="text-3xl md:text-4xl font-bold">{formatNumber(stats.totalBenef, true)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Penerima Manfaat</p>
             </div>
             <div>
-              <p className="text-2xl md:text-3xl font-bold">{stats.lembagaCount}</p>
-              <p className="text-xs text-muted-foreground mt-1">Lembaga Terintegrasi</p>
+              <p className="text-3xl md:text-4xl font-bold">{stats.lembagaCount}</p>
+              <p className="text-sm text-muted-foreground mt-2">Lembaga Terdaftar</p>
             </div>
             <div>
-              <p className="text-2xl md:text-3xl font-bold text-red-600">{formatPct(stats.gapPct)}</p>
-              <p className="text-xs text-muted-foreground mt-1">Gap Potensi Zakat</p>
+              <p className="text-3xl md:text-4xl font-bold text-red-600">{formatPct(stats.gapPct)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Potensi Belum Tercapai</p>
             </div>
           </div>
         </div>
@@ -140,40 +140,40 @@ export default async function LandingPage() {
 
       {/* Value Props */}
       <section className="border-t">
-        <div className="container mx-auto px-4 py-20">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold">Mengapa ZISWAF Hub?</h2>
-            <p className="text-muted-foreground mt-2">Satu platform untuk seluruh ekosistem ZISWAF</p>
+        <div className="container mx-auto px-6 py-24">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold">Mengapa ZISWAF Hub?</h2>
+            <p className="text-lg text-muted-foreground mt-3">Satu platform untuk seluruh pengelolaan ZISWAF</p>
           </div>
           <div className="grid gap-8 md:grid-cols-3 max-w-5xl mx-auto">
-            <div className="text-center space-y-3">
-              <div className="mx-auto w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Target className="size-6 text-primary" />
+            <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Target className="size-8 text-primary" />
               </div>
-              <h3 className="font-semibold">Targeting Berbasis Data</h3>
-              <p className="text-sm text-muted-foreground">
-                Rekomendasi daerah & asnaf prioritas penyaluran berdasarkan data kemiskinan BPS
-                dan gap penyaluran existing.
+              <h3 className="font-bold text-xl">Rekomendasi Penyaluran</h3>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Sistem kami membantu menentukan daerah mana yang paling butuh bantuan
+                berdasarkan data kemiskinan dari BPS.
               </p>
             </div>
-            <div className="text-center space-y-3">
-              <div className="mx-auto w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Shield className="size-6 text-primary" />
+            <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Shield className="size-8 text-primary" />
               </div>
-              <h3 className="font-semibold">Transparansi & Kredibilitas</h3>
-              <p className="text-sm text-muted-foreground">
-                Lembaga yang terintegrasi mendapat badge verifikasi. Publik bisa melihat
-                kinerja dan transparansi data penyaluran.
+              <h3 className="font-bold text-xl">Transparan & Terpercaya</h3>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Lembaga yang terdaftar mendapat tanda verifikasi. Masyarakat bisa melihat
+                data penyaluran secara terbuka.
               </p>
             </div>
-            <div className="text-center space-y-3">
-              <div className="mx-auto w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                <BarChart3 className="size-6 text-primary" />
+            <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <BarChart3 className="size-8 text-primary" />
               </div>
-              <h3 className="font-semibold">Benchmark & Analytics</h3>
-              <p className="text-sm text-muted-foreground">
-                Bandingkan kinerja lembaga Anda dengan agregat nasional. Lihat tren,
-                efisiensi, dan area perbaikan.
+              <h3 className="font-bold text-xl">Perbandingan & Laporan</h3>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Bandingkan kinerja lembaga Anda dengan rata-rata nasional. Lihat
+                mana yang perlu ditingkatkan.
               </p>
             </div>
           </div>
@@ -182,23 +182,26 @@ export default async function LandingPage() {
 
       {/* How It Works */}
       <section className="border-t bg-muted/30">
-        <div className="container mx-auto px-4 py-20">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold">Cara Kerja</h2>
+        <div className="container mx-auto px-6 py-24">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold">Cara Kerja</h2>
           </div>
-          <div className="grid gap-6 md:grid-cols-4 max-w-4xl mx-auto">
+          <div className="grid gap-8 md:grid-cols-4 max-w-5xl mx-auto">
             {[
               { step: "1", title: "Daftar", desc: "Registrasi lembaga Anda di platform" },
-              { step: "2", title: "Input Data", desc: "Submit data pengumpulan & penyaluran" },
-              { step: "3", title: "Dapatkan Insight", desc: "Terima rekomendasi targeting penyaluran" },
+              { step: "2", title: "Catat Data", desc: "Masukkan data pengumpulan & penyaluran" },
+              { step: "3", title: "Lihat Rekomendasi", desc: "Sistem merekomendasikan daerah penyaluran" },
               { step: "4", title: "Tingkatkan Dampak", desc: "Salurkan dana ke penerima yang tepat" },
-            ].map((item) => (
-              <div key={item.step} className="text-center space-y-2">
-                <div className="mx-auto w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
+            ].map((item, idx) => (
+              <div key={item.step} className="relative text-center space-y-4">
+                {idx < 3 && (
+                  <div className="hidden md:block absolute top-7 left-[60%] w-[80%] border-t-2 border-dashed border-muted-foreground/30" />
+                )}
+                <div className="mx-auto w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
                   {item.step}
                 </div>
-                <h3 className="font-semibold text-sm">{item.title}</h3>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
+                <h3 className="font-bold text-lg">{item.title}</h3>
+                <p className="text-base text-muted-foreground">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -207,39 +210,41 @@ export default async function LandingPage() {
 
       {/* CTA */}
       <section className="border-t">
-        <div className="container mx-auto px-4 py-20 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold">
-            Siap Mengoptimalkan Penyaluran ZISWAF?
-          </h2>
-          <p className="text-muted-foreground mt-2 max-w-lg mx-auto">
-            Bergabung dengan lembaga-lembaga yang sudah terintegrasi dan dapatkan
-            rekomendasi penyaluran berbasis data.
-          </p>
-          <Link
-            href="/register"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors mt-6"
-          >
-            Daftarkan Lembaga Anda
-            <ArrowRight className="size-4" />
-          </Link>
+        <div className="container mx-auto px-6 py-28 text-center">
+          <div className="max-w-3xl mx-auto p-12 rounded-3xl bg-gradient-to-br from-primary/5 to-primary/10 border">
+            <h2 className="text-3xl md:text-4xl font-bold">
+              Siap Mengoptimalkan Penyaluran ZISWAF?
+            </h2>
+            <p className="text-lg text-muted-foreground mt-4 max-w-xl mx-auto">
+              Bergabung dengan lembaga-lembaga yang sudah terdaftar dan dapatkan
+              rekomendasi penyaluran yang tepat sasaran.
+            </p>
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-xl text-lg font-semibold hover:bg-primary/90 transition-all hover:shadow-lg hover:shadow-primary/25 mt-8"
+            >
+              Daftarkan Lembaga Anda
+              <ArrowRight className="size-5" />
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="border-t bg-muted/30">
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <div className="size-6 rounded bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground text-xs font-bold">Z</span>
+            <div className="flex items-center gap-2.5 text-base font-semibold">
+              <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
+                <span className="text-primary-foreground text-sm font-bold">Z</span>
               </div>
               ZISWAF Hub
             </div>
-            <p className="text-xs text-muted-foreground">
-              Platform integrasi & analitik ZISWAF nasional. Data BPS, BAZNAS, BWI.
+            <p className="text-sm text-muted-foreground">
+              Platform data ZISWAF nasional. Sumber: BPS, BAZNAS, BWI.
             </p>
-            <nav className="flex items-center gap-4 text-xs text-muted-foreground">
-              <Link href="/analitik" className="hover:text-foreground">Analitik</Link>
+            <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+              <Link href="/analitik" className="hover:text-foreground">Data Nasional</Link>
               <Link href="/direktori" className="hover:text-foreground">Direktori</Link>
               <Link href="/login" className="hover:text-foreground">Masuk</Link>
             </nav>

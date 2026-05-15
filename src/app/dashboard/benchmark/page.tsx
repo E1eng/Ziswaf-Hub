@@ -65,7 +65,7 @@ export default async function BenchmarkPage() {
       better: myDist >= d.avgDist,
     },
     {
-      label: "ACR (Allocation to Collection Ratio)",
+      label: "Rasio Penyaluran (berapa % dana yang tersalurkan)",
       mine: myAcr,
       avg: d.acr,
       format: (v: number) => formatPct(v),
@@ -83,8 +83,8 @@ export default async function BenchmarkPage() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Benchmark"
-        description="Bandingkan kinerja lembaga Anda dengan rata-rata nasional"
+        title="Perbandingan"
+        description="Bagaimana kinerja lembaga Anda dibanding rata-rata lembaga lain di Indonesia?"
       />
 
       <main className="flex-1 p-6 space-y-6">
@@ -93,8 +93,8 @@ export default async function BenchmarkPage() {
             <div className="flex items-center gap-3">
               <GitCompare className="size-5 text-primary" />
               <div>
-                <p className="text-sm font-medium">Perbandingan terhadap {d.lembagaCount} lembaga terintegrasi</p>
-                <p className="text-xs text-muted-foreground">Data agregat nasional tahun 2024 — identitas lembaga lain dianonimkan</p>
+                <p className="text-sm font-medium">Dibandingkan dengan {d.lembagaCount} lembaga lain yang terdaftar</p>
+                <p className="text-xs text-muted-foreground">Data tahun 2024 — nama lembaga lain tidak ditampilkan (rahasia)</p>
               </div>
             </div>
           </CardContent>
@@ -135,8 +135,8 @@ export default async function BenchmarkPage() {
                       title="Rata-rata"
                     />
                   </div>
-                  <Badge variant={m.better ? "secondary" : "outline"} className="text-[10px]">
-                    {m.better ? "Di atas rata-rata" : "Di bawah rata-rata"}
+                  <Badge variant={m.better ? "secondary" : "outline"} className="text-xs">
+                    {m.better ? "Lebih baik dari rata-rata" : "Masih di bawah rata-rata"}
                   </Badge>
                 </div>
               </CardContent>
@@ -149,11 +149,11 @@ export default async function BenchmarkPage() {
             <CardTitle className="text-sm">Catatan</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Benchmark ini membandingkan kinerja lembaga Anda dengan rata-rata dari {d.lembagaCount} lembaga
-              yang terintegrasi di ZISWAF Hub. Data bersifat anonim — tidak ada identitas lembaga lain yang ditampilkan.
-              ACR (Allocation to Collection Ratio) yang baik adalah ≥70%, menunjukkan efisiensi penyaluran.
-              Gunakan fitur <strong>Targeting Penyaluran</strong> untuk meningkatkan efektivitas distribusi Anda.
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Perbandingan ini menggunakan data dari {d.lembagaCount} lembaga yang terdaftar di ZISWAF Hub.
+              Nama lembaga lain dirahasiakan. Rasio penyaluran yang baik adalah 70% ke atas —
+              artinya dari setiap Rp100 yang dikumpulkan, minimal Rp70 sudah disalurkan.
+              Gunakan menu <strong>Rekomendasi Daerah</strong> untuk melihat kemana sebaiknya dana disalurkan.
             </p>
           </CardContent>
         </Card>

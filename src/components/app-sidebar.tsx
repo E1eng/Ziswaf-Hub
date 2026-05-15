@@ -24,14 +24,16 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   {
     label: "Utama",
     items: [
-      { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { title: "Targeting Penyaluran", href: "/dashboard/targeting", icon: Target },
+      { title: "Beranda", href: "/dashboard", icon: LayoutDashboard },
+      { title: "Rekomendasi Daerah", href: "/dashboard/targeting", icon: Target },
     ],
   },
   {
@@ -39,13 +41,13 @@ const navItems = [
     items: [
       { title: "Pengumpulan", href: "/dashboard/pengumpulan", icon: FileBarChart },
       { title: "Penyaluran", href: "/dashboard/penyaluran", icon: BarChart3 },
-      { title: "Input Data", href: "/dashboard/input", icon: PlusCircle },
+      { title: "Tambah Data", href: "/dashboard/input", icon: PlusCircle },
     ],
   },
   {
     label: "Lainnya",
     items: [
-      { title: "Benchmark", href: "/dashboard/benchmark", icon: GitCompare },
+      { title: "Perbandingan", href: "/dashboard/benchmark", icon: GitCompare },
       { title: "Pengaturan", href: "/dashboard/pengaturan", icon: Settings },
     ],
   },
@@ -63,7 +65,7 @@ export function AppSidebar() {
           </div>
           <div>
             <p className="text-sm font-semibold">ZISWAF Hub</p>
-            <p className="text-xs text-muted-foreground">Analytics Platform</p>
+            <p className="text-xs text-muted-foreground">Platform Analitik</p>
           </div>
         </div>
       </SidebarHeader>
@@ -89,9 +91,22 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="border-t p-4">
-        <p className="text-xs text-muted-foreground text-center">
-          ZISWAF Analytics Hub v0.1.0
+      <SidebarFooter className="border-t p-3 space-y-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-muted-foreground hover:text-destructive"
+          onClick={async () => {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+            window.location.href = "/";
+          }}
+        >
+          <LogOut className="size-4 mr-2" />
+          Keluar
+        </Button>
+        <p className="text-[10px] text-muted-foreground text-center">
+          ZISWAF Hub v0.1.0
         </p>
       </SidebarFooter>
     </Sidebar>

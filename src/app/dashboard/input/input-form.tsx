@@ -66,11 +66,11 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
       <Card className="max-w-lg">
         <CardContent className="pt-6 text-center space-y-4">
           <CheckCircle className="size-12 mx-auto text-green-600" />
-          <h3 className="text-lg font-semibold">Data Berhasil Disubmit</h3>
+          <h3 className="text-lg font-semibold">Data Berhasil Disimpan</h3>
           <p className="text-sm text-muted-foreground">
-            Data {dataType} Anda telah tercatat. Terima kasih atas transparansi data lembaga Anda.
+            Data {dataType} Anda sudah tercatat. Terima kasih!
           </p>
-          <Button onClick={reset} variant="outline">Input Data Lagi</Button>
+          <Button onClick={reset} variant="outline">Tambah Data Lagi</Button>
         </CardContent>
       </Card>
     );
@@ -79,9 +79,9 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
   return (
     <Card className="max-w-lg">
       <CardHeader>
-        <CardTitle>Input Data {dataType === "pengumpulan" ? "Pengumpulan" : "Penyaluran"}</CardTitle>
+        <CardTitle>Tambah Data {dataType === "pengumpulan" ? "Pengumpulan" : "Penyaluran"}</CardTitle>
         <CardDescription>
-          Pilih jenis data dan isi form di bawah
+          Pilih jenis data lalu isi kolom di bawah ini
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -208,7 +208,7 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
           </div>
 
           <Button type="submit" className="w-full" disabled={loading || !regionId || !amount}>
-            {loading ? "Menyimpan..." : "Submit Data"}
+            {loading ? "Menyimpan..." : "Simpan Data"}
           </Button>
         </form>
       </CardContent>
