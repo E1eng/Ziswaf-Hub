@@ -17,8 +17,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
-import { MapPin, Users, TrendingDown, AlertTriangle } from "lucide-react";
+import { MapPin, Users, TrendingDown, AlertTriangle, ExternalLink } from "lucide-react";
 import { IndonesiaMap } from "@/components/maps/indonesia-map";
+import Link from "next/link";
+
+interface TopKecamatan {
+  region_id: string;
+  name: string;
+  kab_name: string;
+  prov_name: string;
+  priority_score: number;
+  poverty_rate: number;
+  population: number;
+  coverage_gap_score: number;
+}
 
 interface ProvinceStats {
   provinsi_id: string;
@@ -139,8 +151,47 @@ async function getMapData(): Promise<ProvinceStats[]> {
   return results.sort((a, b) => b.avg_priority_score - a.avg_priority_score);
 }
 
+async function getTopKecamatan(): Promise<TopKecamatan[]> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("kecamatan_indicators")
+    .select(`
+      region_id, priority_score, poverty_rate, population, coverage_gap_score,
+      regions!inner(id, name, parent_id)
+    `)
+    .eq("year", 2024)
+    .order("priority_score", { ascending: false })
+    .limit(20);
+
+  if (!data || data.length === 0) return [];
+
+  const regions = data.map((k) => k.regions as unknown as { id: string; name: string; parent_id: string });
+  const kabIds = [...new Set(regions.map((r) => r.parent_id).filter(Boolean))];
+  const { data: kabs } = await supabase.from("regions").select("id, name, parent_id").in("id", kabIds);
+  const kabMap = new Map((kabs || []).map((r) => [r.id, r]));
+  const provIds = [...new Set((kabs || []).map((r) => r.parent_id).filter((x): x is string => !!x))];
+  const { data: provs } = await supabase.from("regions").select("id, name").in("id", provIds);
+  const provMap = new Map((provs || []).map((r) => [r.id, r.name]));
+
+  return data.map((k) => {
+    const region = k.regions as unknown as { id: string; name: string; parent_id: string };
+    const kab = kabMap.get(region.parent_id);
+    return {
+      region_id: k.region_id as string,
+      name: region.name,
+      kab_name: kab?.name || "",
+      prov_name: kab?.parent_id ? (provMap.get(kab.parent_id) || "") : "",
+      priority_score: k.priority_score || 0,
+      poverty_rate: k.poverty_rate || 0,
+      population: k.population || 0,
+      coverage_gap_score: k.coverage_gap_score || 0,
+    };
+  });
+}
+
 export default async function PetaPage() {
-  const provinces = await getMapData();
+  const [provinces, topKec] = await Promise.all([getMapData(), getTopKecamatan()]);
 
   const totalKec = provinces.reduce((s, p) => s + p.total_kecamatan, 0);
   const totalPop = provinces.reduce((s, p) => s + p.total_population, 0);
@@ -234,6 +285,65 @@ export default async function PetaPage() {
                 total_ziswaf_received: p.total_ziswaf_received,
               }))}
             />
+          </CardContent>
+        </Card>
+
+        {/* Top Kecamatan */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">20 Kecamatan Paling Butuh Bantuan</CardTitle>
+            <CardDescription>
+              Klik nama kecamatan untuk melihat profil lengkap: 8 asnaf, program rekomendasi, dll.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">#</TableHead>
+                    <TableHead>Kecamatan</TableHead>
+                    <TableHead>Kabupaten</TableHead>
+                    <TableHead>Provinsi</TableHead>
+                    <TableHead className="text-right">Skor</TableHead>
+                    <TableHead className="text-right">Kemiskinan</TableHead>
+                    <TableHead className="text-right">Penduduk</TableHead>
+                    <TableHead className="text-right">Gap</TableHead>
+                    <TableHead className="w-12"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {topKec.map((k, idx) => (
+                    <TableRow key={k.region_id}>
+                      <TableCell className="font-medium">{idx + 1}</TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/dashboard/peta/${k.region_id}`}
+                          className="font-semibold text-primary hover:underline"
+                        >
+                          {k.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{k.kab_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{k.prov_name}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={k.priority_score >= 80 ? "destructive" : k.priority_score >= 60 ? "default" : "secondary"}>
+                          {k.priority_score.toFixed(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{formatPct(k.poverty_rate)}</TableCell>
+                      <TableCell className="text-right">{formatNumber(k.population, true)}</TableCell>
+                      <TableCell className="text-right">{k.coverage_gap_score.toFixed(1)}</TableCell>
+                      <TableCell>
+                        <Link href={`/dashboard/peta/${k.region_id}`} className="text-muted-foreground hover:text-primary">
+                          <ExternalLink className="size-4" />
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 

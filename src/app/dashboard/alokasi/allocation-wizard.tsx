@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import {
   approveAndDisburse,
   checkBalance,
@@ -614,7 +615,9 @@ export function AllocationWizard({ programs, provinces }: Props) {
                           priority_rank: idx + 1,
                         }));
                         await supabase.from("allocation_plan_items").insert(items);
-                        alert("Rencana alokasi berhasil disimpan!");
+                        toast.success("Rencana alokasi berhasil disimpan!", {
+                          description: `${result.total_kecamatan} kecamatan, ${formatRupiah(result.total_budget)}`,
+                        });
                       }
                     }}
                   >
@@ -913,6 +916,16 @@ export function AllocationWizard({ programs, provinces }: Props) {
                     });
 
                     setDisbursementResult(res);
+
+                    if (res.success) {
+                      toast.success("Penyaluran berhasil diproses!", {
+                        description: `Provider: ${res.provider} | ${formatRupiah(result.total_allocated)}`,
+                      });
+                    } else {
+                      toast.error("Penyaluran gagal", {
+                        description: res.error,
+                      });
+                    }
 
                     // Auto-download CSV if applicable
                     if (res.success && res.method === "CSV_DOWNLOAD" && res.csv_data) {
