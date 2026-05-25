@@ -64,10 +64,10 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
   if (success) {
     return (
       <Card className="max-w-lg">
-        <CardContent className="pt-6 text-center space-y-4">
-          <CheckCircle className="size-12 mx-auto text-green-600" />
-          <h3 className="text-lg font-semibold">Data Berhasil Disimpan</h3>
-          <p className="text-sm text-muted-foreground">
+        <CardContent className="pt-8 pb-8 text-center space-y-4">
+          <CheckCircle className="size-14 mx-auto text-green-600" />
+          <h3 className="text-xl font-bold">Data Berhasil Disimpan</h3>
+          <p className="text-base text-muted-foreground">
             Data {dataType} Anda sudah tercatat. Terima kasih!
           </p>
           <Button onClick={reset} variant="outline">Tambah Data Lagi</Button>
@@ -79,13 +79,13 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
   return (
     <Card className="max-w-lg">
       <CardHeader>
-        <CardTitle>Tambah Data {dataType === "pengumpulan" ? "Pengumpulan" : "Penyaluran"}</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-xl">Tambah Data {dataType === "pengumpulan" ? "Pengumpulan" : "Penyaluran"}</CardTitle>
+        <CardDescription className="text-sm">
           Pilih jenis data lalu isi kolom di bawah ini
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {/* Data Type Toggle */}
           <div className="flex gap-2">
             <Button
@@ -133,7 +133,7 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
-                      <Badge variant="outline" className="ml-2 text-[9px]">{c.category}</Badge>
+                      <Badge variant="outline" className="ml-2 text-xs">{c.category}</Badge>
                     </SelectItem>
                   ))}
                 </SelectContent>

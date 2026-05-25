@@ -9,6 +9,10 @@ import {
   LayoutDashboard,
   GitCompare,
   LogOut,
+  Calculator,
+  Map,
+  Wallet,
+  Search,
 } from "lucide-react";
 
 import {
@@ -34,6 +38,8 @@ const navItems = [
     items: [
       { title: "Beranda", href: "/dashboard", icon: LayoutDashboard },
       { title: "Rekomendasi Daerah", href: "/dashboard/targeting", icon: Target },
+      { title: "Alokasi Cerdas", href: "/dashboard/alokasi", icon: Calculator },
+      { title: "Peta Kecamatan", href: "/dashboard/peta", icon: Map },
     ],
   },
   {
@@ -48,6 +54,7 @@ const navItems = [
     label: "Lainnya",
     items: [
       { title: "Perbandingan", href: "/dashboard/benchmark", icon: GitCompare },
+      { title: "Lacak Donasi", href: "/lacak", icon: Search },
       { title: "Pengaturan", href: "/dashboard/pengaturan", icon: Settings },
     ],
   },
@@ -58,14 +65,14 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b px-6 py-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
+      <SidebarHeader className="border-b px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-base font-bold">
             Z
           </div>
           <div>
-            <p className="text-sm font-semibold">ZISWAF Hub</p>
-            <p className="text-xs text-muted-foreground">Platform Analitik</p>
+            <p className="text-base font-bold">ZISWAF Hub</p>
+            <p className="text-sm text-muted-foreground">Platform Analitik</p>
           </div>
         </div>
       </SidebarHeader>
@@ -81,7 +88,7 @@ export function AppSidebar() {
                       render={<Link href={item.href} />}
                       isActive={pathname === item.href}
                     >
-                      <item.icon className="size-4" />
+                      <item.icon className="size-5" />
                       <span>{item.title}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -91,21 +98,20 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="border-t p-3 space-y-2">
+      <SidebarFooter className="border-t p-4 space-y-2">
         <Button
           variant="ghost"
-          size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-destructive"
+          className="w-full justify-start text-muted-foreground hover:text-destructive text-sm"
           onClick={async () => {
             const supabase = createClient();
             await supabase.auth.signOut();
             window.location.href = "/";
           }}
         >
-          <LogOut className="size-4 mr-2" />
+          <LogOut className="size-5 mr-2" />
           Keluar
         </Button>
-        <p className="text-[10px] text-muted-foreground text-center">
+        <p className="text-xs text-muted-foreground text-center">
           ZISWAF Hub v0.1.0
         </p>
       </SidebarFooter>

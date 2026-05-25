@@ -17,6 +17,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
+import { SectorPieChart } from "@/components/charts/sector-pie-chart";
 
 async function getDistributionData() {
   const supabase = await createClient();
@@ -84,8 +85,8 @@ export default async function PenyaluranPage() {
         description="Data penyaluran ZIS-DSKL per sektor dan provinsi"
       />
 
-      <main className="flex-1 p-6 space-y-6">
-        <div className="grid gap-4 md:grid-cols-4">
+      <main className="flex-1 p-6 space-y-8">
+        <div className="grid gap-5 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -93,7 +94,7 @@ export default async function PenyaluranPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(data.totalAmount)}</div>
+              <div className="text-3xl font-bold">{formatRupiah(data.totalAmount)}</div>
             </CardContent>
           </Card>
           <Card>
@@ -103,7 +104,7 @@ export default async function PenyaluranPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(data.totalBeneficiaries, true)}</div>
+              <div className="text-3xl font-bold">{formatNumber(data.totalBeneficiaries, true)}</div>
             </CardContent>
           </Card>
           <Card>
@@ -113,8 +114,8 @@ export default async function PenyaluranPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(data.dayaguna)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Program produktif</p>
+              <div className="text-3xl font-bold">{formatRupiah(data.dayaguna)}</div>
+              <p className="text-sm text-muted-foreground mt-1">Program produktif</p>
             </CardContent>
           </Card>
           <Card>
@@ -124,17 +125,17 @@ export default async function PenyaluranPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(data.distribusi)}</div>
-              <p className="text-xs text-muted-foreground mt-1">Program kuratif/konsumtif</p>
+              <div className="text-3xl font-bold">{formatRupiah(data.distribusi)}</div>
+              <p className="text-sm text-muted-foreground mt-1">Bantuan langsung</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Penyaluran per Sektor</CardTitle>
-              <CardDescription>7 bidang penyaluran ZISWAF</CardDescription>
+              <CardTitle className="text-xl">Penyaluran per Sektor</CardTitle>
+              <CardDescription className="text-sm">7 bidang penyaluran ZISWAF</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -144,17 +145,17 @@ export default async function PenyaluranPage() {
                     <div key={sector.name} className="space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">{sector.name}</span>
-                          <Badge variant="outline" className="text-xs capitalize">{sector.type || "-"}</Badge>
+                          <span className="text-base">{sector.name}</span>
+                          <Badge variant="outline" className="text-sm capitalize">{sector.type || "-"}</Badge>
                         </div>
-                        <span className="text-sm font-semibold">{formatPct(pct)}</span>
+                        <span className="text-base font-semibold">{formatPct(pct)}</span>
                       </div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <span>{formatRupiah(sector.amount)}</span>
                         <span>{formatNumber(sector.beneficiaries)} penerima</span>
                       </div>
-                      <div className="w-full bg-muted rounded-full h-1.5">
-                        <div className="bg-primary rounded-full h-1.5" style={{ width: `${pct}%` }} />
+                      <div className="w-full bg-muted rounded-full h-2.5">
+                        <div className="bg-primary rounded-full h-2.5" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
@@ -165,42 +166,24 @@ export default async function PenyaluranPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Top 10 Provinsi Penyaluran</CardTitle>
-              <CardDescription>Daerah dengan penyaluran terbesar</CardDescription>
+              <CardTitle className="text-xl">Proporsi per Sektor</CardTitle>
+              <CardDescription className="text-sm">Visualisasi pembagian dana penyaluran</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {data.provinces.slice(0, 10).map((prov, idx) => {
-                  const pct = data.totalAmount > 0 ? (prov.amount / data.totalAmount) * 100 : 0;
-                  return (
-                    <div key={prov.name} className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground w-4">{idx + 1}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{prov.name}</span>
-                          <span className="text-xs text-muted-foreground">{formatRupiah(prov.amount)}</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-1 mt-1">
-                          <div className="bg-primary rounded-full h-1" style={{ width: `${pct * 3}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <SectorPieChart data={data.sectors.map(s => ({ name: s.name, amount: s.amount }))} />
             </CardContent>
           </Card>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Detail Penyaluran per Provinsi</CardTitle>
+            <CardTitle className="text-xl">Detail Penyaluran per Provinsi</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-8">#</TableHead>
+                  <TableHead className="w-16">#</TableHead>
                   <TableHead>Provinsi</TableHead>
                   <TableHead className="text-right">Total Penyaluran</TableHead>
                   <TableHead className="text-right">Penerima Manfaat</TableHead>

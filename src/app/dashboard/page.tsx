@@ -15,6 +15,9 @@ import {
   Target,
   ArrowRight,
   PlusCircle,
+  Wallet,
+  Calculator,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -33,6 +36,7 @@ async function getDashboardData() {
     { data: distCur },
     { data: gapRows },
     { data: wakafSummary },
+    { data: treasuryRow },
   ] = await Promise.all([
     supabase.from("mv_collection_by_region_year")
       .select("total_amount, total_donors, ziswaf_category")
@@ -48,6 +52,10 @@ async function getDashboardData() {
       .limit(5),
     supabase.from("mv_wakaf_summary_by_province")
       .select("total_locations, productive_count, total_estimated_value, total_area_hectares"),
+    supabase.from("treasury_balances")
+      .select("zakat_balance, infaq_balance, wakaf_balance")
+      .limit(1)
+      .single(),
   ]);
 
   const totalCollection = (collCur || []).reduce((s, r) => s + (r.total_amount || 0), 0);
@@ -100,10 +108,18 @@ async function getDashboardData() {
     population: g.population || 0,
   }));
 
+  // Treasury
+  const treasury = treasuryRow ? {
+    zakat: Number(treasuryRow.zakat_balance || 0),
+    infaq: Number(treasuryRow.infaq_balance || 0),
+    wakaf: Number(treasuryRow.wakaf_balance || 0),
+    total: Number(treasuryRow.zakat_balance || 0) + Number(treasuryRow.infaq_balance || 0) + Number(treasuryRow.wakaf_balance || 0),
+  } : { zakat: 0, infaq: 0, wakaf: 0, total: 0 };
+
   return {
     totalCollection, collChange, totalDonors,
     totalDist, totalBenef, acr,
-    ziswafBreakdown,
+    ziswafBreakdown, treasury,
     wakafLocations, wakafProductivePct, wakafValue, wakafArea,
     sectors, priorityRegions,
   };
@@ -165,11 +181,14 @@ export default async function DashboardPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">Jumlah Donatur</CardTitle>
+              <CardTitle className="text-base font-medium text-muted-foreground">Saldo Treasury</CardTitle>
+              <Wallet className="size-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{formatNumber(d.totalDonors, true)}</div>
-              <p className="text-sm text-muted-foreground mt-2">Orang yang menyalurkan dana</p>
+              <div className="text-3xl font-bold">{formatRupiah(d.treasury.total)}</div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Zakat {formatRupiah(d.treasury.zakat)}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -197,14 +216,27 @@ export default async function DashboardPage() {
                 <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link
-                href="/dashboard/input"
+                href="/dashboard/alokasi"
                 className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
               >
                 <div className="p-3 bg-green-500/10 rounded-xl">
-                  <PlusCircle className="size-6 text-green-600" />
+                  <Calculator className="size-6 text-green-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-base font-semibold group-hover:text-green-600">Tambah Data Baru</p>
+                  <p className="text-base font-semibold group-hover:text-green-600">Alokasi Cerdas</p>
+                  <p className="text-sm text-muted-foreground">Hitung alokasi optimal + salurkan dana</p>
+                </div>
+                <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link
+                href="/dashboard/input"
+                className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
+              >
+                <div className="p-3 bg-amber-500/10 rounded-xl">
+                  <PlusCircle className="size-6 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-semibold group-hover:text-amber-600">Tambah Data Baru</p>
                   <p className="text-sm text-muted-foreground">Catat data pengumpulan atau penyaluran</p>
                 </div>
                 <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />

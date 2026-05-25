@@ -10,6 +10,9 @@ import {
   Shield,
   Target,
   TrendingUp,
+  Search,
+  Package,
+  Calculator,
 } from "lucide-react";
 
 async function getLandingStats() {
@@ -55,8 +58,17 @@ export default async function LandingPage() {
             <Link href="/direktori" className="text-muted-foreground hover:text-foreground transition-colors">
               Direktori Lembaga
             </Link>
+            <Link href="/lacak" className="text-muted-foreground hover:text-foreground transition-colors">
+              Lacak Donasi
+            </Link>
           </nav>
           <div className="flex items-center gap-3">
+            <Link
+              href="/demo"
+              className="px-5 py-2.5 text-base font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+            >
+              Coba Demo
+            </Link>
             <Link
               href="/login"
               className="px-5 py-2.5 text-base font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -97,10 +109,10 @@ export default async function LandingPage() {
                 <ArrowRight className="size-5" />
               </Link>
               <Link
-                href="/analitik"
-                className="inline-flex items-center gap-2 px-8 py-4 border-2 rounded-xl text-lg font-medium hover:bg-muted transition-colors"
+                href="/demo"
+                className="inline-flex items-center gap-2 px-8 py-4 border-2 border-emerald-300 bg-emerald-50 text-emerald-700 rounded-xl text-lg font-medium hover:bg-emerald-100 transition-colors"
               >
-                Lihat Data ZISWAF Nasional
+                Coba Demo Langsung
               </Link>
             </div>
           </div>
@@ -138,6 +150,33 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* Tracking Search */}
+      <section className="border-t">
+        <div className="container mx-auto px-6 py-20">
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Package className="size-7 text-primary" />
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold">Lacak Status Donasi Anda</h2>
+            <p className="text-lg text-muted-foreground">
+              Masukkan kode batch untuk melihat kemana dana Anda telah disalurkan
+            </p>
+            <div className="flex gap-3 max-w-md mx-auto">
+              <Link
+                href="/lacak"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 border-2 rounded-xl text-base font-medium hover:bg-muted transition-colors"
+              >
+                <Search className="size-5" />
+                Cari Kode Batch
+              </Link>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Contoh: <code className="bg-muted px-2 py-0.5 rounded">ZH-2024-000001</code>
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Value Props */}
       <section className="border-t">
         <div className="container mx-auto px-6 py-24">
@@ -150,30 +189,27 @@ export default async function LandingPage() {
               <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Target className="size-8 text-primary" />
               </div>
-              <h3 className="font-bold text-xl">Rekomendasi Penyaluran</h3>
+              <h3 className="font-bold text-xl">Smart Targeting Kecamatan</h3>
               <p className="text-base text-muted-foreground leading-relaxed">
-                Sistem kami membantu menentukan daerah mana yang paling butuh bantuan
-                berdasarkan data kemiskinan dari BPS.
+                Analisis 6.455 kecamatan se-Indonesia. Estimasi 8 kategori asnaf per daerah berdasarkan data BPS.
               </p>
             </div>
             <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <Shield className="size-8 text-primary" />
+                <Calculator className="size-8 text-primary" />
               </div>
-              <h3 className="font-bold text-xl">Transparan & Terpercaya</h3>
+              <h3 className="font-bold text-xl">Alokasi Cerdas</h3>
               <p className="text-base text-muted-foreground leading-relaxed">
-                Lembaga yang terdaftar mendapat tanda verifikasi. Masyarakat bisa melihat
-                data penyaluran secara terbuka.
+                Input anggaran, pilih program — sistem menghitung alokasi optimal ke kecamatan yang paling membutuhkan.
               </p>
             </div>
             <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <BarChart3 className="size-8 text-primary" />
+                <Search className="size-8 text-primary" />
               </div>
-              <h3 className="font-bold text-xl">Perbandingan & Laporan</h3>
+              <h3 className="font-bold text-xl">Transparan & Terlacak</h3>
               <p className="text-base text-muted-foreground leading-relaxed">
-                Bandingkan kinerja lembaga Anda dengan rata-rata nasional. Lihat
-                mana yang perlu ditingkatkan.
+                Publik bisa melacak penyaluran per batch layaknya lacak paket. Data lembaga terbuka dan bisa dibandingkan.
               </p>
             </div>
           </div>
@@ -246,6 +282,7 @@ export default async function LandingPage() {
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
               <Link href="/analitik" className="hover:text-foreground">Data Nasional</Link>
               <Link href="/direktori" className="hover:text-foreground">Direktori</Link>
+              <Link href="/lacak" className="hover:text-foreground">Lacak Donasi</Link>
               <Link href="/login" className="hover:text-foreground">Masuk</Link>
             </nav>
           </div>

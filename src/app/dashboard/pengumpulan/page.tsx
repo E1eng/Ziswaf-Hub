@@ -17,6 +17,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { createClient } from "@/lib/supabase/server";
 import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
+import { MonthlyTrendChart } from "@/components/charts/monthly-trend-chart";
 
 async function getCollectionData() {
   const supabase = await createClient();
@@ -81,8 +82,8 @@ export default async function PengumpulanPage() {
         description="Data pengumpulan ZIS-DSKL per provinsi dan kategori"
       />
 
-      <main className="flex-1 p-6 space-y-6">
-        <div className="grid gap-4 md:grid-cols-3">
+      <main className="flex-1 p-6 space-y-8">
+        <div className="grid gap-5 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -90,17 +91,17 @@ export default async function PengumpulanPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatRupiah(data.totalAmount)}</div>
+              <div className="text-3xl font-bold">{formatRupiah(data.totalAmount)}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Muzakki/Donatur
+                Total Donatur
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(data.totalDonors, true)}</div>
+              <div className="text-3xl font-bold">{formatNumber(data.totalDonors, true)}</div>
             </CardContent>
           </Card>
           <Card>
@@ -110,16 +111,16 @@ export default async function PengumpulanPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{data.provinces.length}</div>
+              <div className="text-3xl font-bold">{data.provinces.length}</div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Per Kategori ZISWAF</CardTitle>
-              <CardDescription>Distribusi pengumpulan per jenis</CardDescription>
+              <CardTitle className="text-xl">Per Kategori ZISWAF</CardTitle>
+              <CardDescription className="text-sm">Pembagian pengumpulan per jenis</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -128,14 +129,14 @@ export default async function PengumpulanPage() {
                   return (
                     <div key={cat.name} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm truncate max-w-[200px]">{cat.name}</span>
+                        <span className="text-base truncate max-w-[200px]">{cat.name}</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">{formatRupiah(cat.amount)}</span>
-                          <Badge variant="secondary" className="text-xs">{formatPct(pct)}</Badge>
+                          <span className="text-sm text-muted-foreground">{formatRupiah(cat.amount)}</span>
+                          <Badge variant="secondary" className="text-sm">{formatPct(pct)}</Badge>
                         </div>
                       </div>
-                      <div className="w-full bg-muted rounded-full h-1.5">
-                        <div className="bg-primary rounded-full h-1.5" style={{ width: `${pct}%` }} />
+                      <div className="w-full bg-muted rounded-full h-2.5">
+                        <div className="bg-primary rounded-full h-2.5" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
@@ -146,42 +147,25 @@ export default async function PengumpulanPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Trend Bulanan</CardTitle>
-              <CardDescription>Pengumpulan per bulan (2023-2024)</CardDescription>
+              <CardTitle className="text-xl">Tren Bulanan</CardTitle>
+              <CardDescription className="text-sm">Perbandingan pengumpulan bulanan 2023 vs 2024</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {data.monthly
-                  .filter((m) => m.year === 2024)
-                  .map((m) => {
-                    const monthName = new Date(2024, (m.month || 1) - 1).toLocaleString("id-ID", { month: "short" });
-                    const maxAmount = Math.max(...data.monthly.filter((x) => x.year === 2024).map((x) => x.total_amount || 0));
-                    const pct = maxAmount > 0 ? ((m.total_amount || 0) / maxAmount) * 100 : 0;
-                    return (
-                      <div key={m.month} className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground w-8">{monthName}</span>
-                        <div className="flex-1 bg-muted rounded-full h-2">
-                          <div className="bg-primary rounded-full h-2" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-xs font-medium w-20 text-right">{formatRupiah(m.total_amount || 0)}</span>
-                      </div>
-                    );
-                  })}
-              </div>
+              <MonthlyTrendChart data={data.monthly} />
             </CardContent>
           </Card>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Pengumpulan per Provinsi</CardTitle>
-            <CardDescription>Diurutkan berdasarkan total pengumpulan terbesar</CardDescription>
+            <CardTitle className="text-xl">Pengumpulan per Provinsi</CardTitle>
+            <CardDescription className="text-sm">Diurutkan berdasarkan total pengumpulan terbesar</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-8">#</TableHead>
+                  <TableHead className="w-10">#</TableHead>
                   <TableHead>Provinsi</TableHead>
                   <TableHead className="text-right">Total Pengumpulan</TableHead>
                   <TableHead className="text-right">Jumlah Donatur</TableHead>

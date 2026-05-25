@@ -87,55 +87,55 @@ export default async function BenchmarkPage() {
         description="Bagaimana kinerja lembaga Anda dibanding rata-rata lembaga lain di Indonesia?"
       />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-6 space-y-8">
         <Card className="bg-muted/30">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <GitCompare className="size-5 text-primary" />
+            <div className="flex items-center gap-4">
+              <GitCompare className="size-6 text-primary" />
               <div>
-                <p className="text-sm font-medium">Dibandingkan dengan {d.lembagaCount} lembaga lain yang terdaftar</p>
-                <p className="text-xs text-muted-foreground">Data tahun 2024 — nama lembaga lain tidak ditampilkan (rahasia)</p>
+                <p className="text-base font-semibold">Dibandingkan dengan {d.lembagaCount} lembaga lain yang terdaftar</p>
+                <p className="text-sm text-muted-foreground">Data tahun 2024 — nama lembaga lain tidak ditampilkan (rahasia)</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           {metrics.map((m) => (
             <Card key={m.label}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{m.label}</CardTitle>
+                <CardTitle className="text-base font-semibold text-muted-foreground">{m.label}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Lembaga Anda</span>
+                    <span className="text-sm text-muted-foreground">Lembaga Anda</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold">{m.format(m.mine)}</span>
+                      <span className="text-2xl font-bold">{m.format(m.mine)}</span>
                       {m.better ? (
-                        <TrendingUp className="size-4 text-green-600" />
+                        <TrendingUp className="size-5 text-green-600" />
                       ) : (
-                        <TrendingDown className="size-4 text-red-500" />
+                        <TrendingDown className="size-5 text-red-500" />
                       )}
                     </div>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Rata-rata Nasional</span>
-                    <span className="text-sm font-medium text-muted-foreground">{m.format(m.avg)}</span>
+                    <span className="text-sm text-muted-foreground">Rata-rata Nasional</span>
+                    <span className="text-base font-medium text-muted-foreground">{m.format(m.avg)}</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2 relative">
+                  <div className="w-full bg-muted rounded-full h-3 relative">
                     <div
-                      className={`rounded-full h-2 ${m.better ? "bg-green-500" : "bg-orange-500"}`}
+                      className={`rounded-full h-3 ${m.better ? "bg-green-500" : "bg-orange-500"}`}
                       style={{ width: `${Math.min((m.mine / Math.max(m.avg, 1)) * 100, 150)}%`, maxWidth: "100%" }}
                     />
                     <div
-                      className="absolute top-0 w-0.5 h-2 bg-foreground/50"
+                      className="absolute top-0 w-0.5 h-3 bg-foreground/50"
                       style={{ left: "100%" }}
                       title="Rata-rata"
                     />
                   </div>
-                  <Badge variant={m.better ? "secondary" : "outline"} className="text-xs">
+                  <Badge variant={m.better ? "secondary" : "outline"} className="text-sm">
                     {m.better ? "Lebih baik dari rata-rata" : "Masih di bawah rata-rata"}
                   </Badge>
                 </div>
@@ -146,10 +146,10 @@ export default async function BenchmarkPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Catatan</CardTitle>
+            <CardTitle className="text-lg">Catatan</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-base text-muted-foreground leading-relaxed">
               Perbandingan ini menggunakan data dari {d.lembagaCount} lembaga yang terdaftar di ZISWAF Hub.
               Nama lembaga lain dirahasiakan. Rasio penyaluran yang baik adalah 70% ke atas —
               artinya dari setiap Rp100 yang dikumpulkan, minimal Rp70 sudah disalurkan.
