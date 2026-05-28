@@ -39,6 +39,7 @@ import {
 import { formatRupiah } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { ProposalForm } from "./proposal-form";
 
 interface Proposal {
   id: string;
@@ -84,6 +85,7 @@ export default function ProposalPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [processing, setProcessing] = useState<string | null>(null);
   const [stats, setStats] = useState({ pending: 0, approved: 0, disbursed: 0, total: 0 });
+  const [showForm, setShowForm] = useState(false);
 
   const fetchProposals = useCallback(async () => {
     setLoading(true);
@@ -187,6 +189,13 @@ export default function ProposalPage() {
       </div>
 
       <main className="flex-1 p-8 space-y-6">
+        {showForm && (
+          <ProposalForm
+            onSuccess={() => { setShowForm(false); fetchProposals(); fetchStats(); }}
+            onCancel={() => setShowForm(false)}
+          />
+        )}
+
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
@@ -228,6 +237,12 @@ export default function ProposalPage() {
                 <CardDescription>Proposal diurutkan berdasarkan skor prioritas tertinggi</CardDescription>
               </div>
               <div className="flex items-center gap-3">
+                {!showForm && (
+                  <Button size="sm" variant="outline" onClick={() => setShowForm(true)} className="gap-1.5">
+                    <Users className="size-4" />
+                    Tambah Proposal
+                  </Button>
+                )}
                 {filter === "PENDING" && proposals.length > 0 && (
                   <Button size="sm" onClick={handleBulkApprove} className="gap-1.5">
                     <CheckCircle className="size-4" />

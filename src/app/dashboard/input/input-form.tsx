@@ -19,15 +19,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 interface Props {
   regions: { id: string; name: string }[];
   categories: { id: string; name: string; category: string }[];
   sectors: { id: string; name: string; code: string }[];
+  institutionId: string;
 }
 
-export function InputDataForm({ regions, categories, sectors }: Props) {
+export function InputDataForm({ regions, categories, sectors, institutionId }: Props) {
   const [dataType, setDataType] = useState<"pengumpulan" | "penyaluran">("pengumpulan");
   const [regionId, setRegionId] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -43,10 +46,41 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
     e.preventDefault();
     setLoading(true);
 
-    // In real app, this would call a server action or API route
-    // For hackathon demo, we simulate success
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const supabase = createClient();
 
+    if (dataType === "pengumpulan") {
+      const { error } = await supabase.from("collections").insert({
+        institution_id: institutionId,
+        region_id: regionId,
+        ziswaf_category_id: categoryId,
+        year: Number(year),
+        month: month ? Number(month) : null,
+        amount: Number(amount),
+        donor_count: count ? Number(count) : 0,
+      });
+      if (error) {
+        toast.error("Gagal menyimpan", { description: error.message });
+        setLoading(false);
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("distributions").insert({
+        institution_id: institutionId,
+        region_id: regionId,
+        sector_id: sectorId,
+        year: Number(year),
+        month: month ? Number(month) : null,
+        amount: Number(amount),
+        beneficiary_count: count ? Number(count) : 0,
+      });
+      if (error) {
+        toast.error("Gagal menyimpan", { description: error.message });
+        setLoading(false);
+        return;
+      }
+    }
+
+    toast.success("Data berhasil disimpan");
     setSuccess(true);
     setLoading(false);
   }
@@ -208,6 +242,7 @@ export function InputDataForm({ regions, categories, sectors }: Props) {
           </div>
 
           <Button type="submit" className="w-full" disabled={loading || !regionId || !amount}>
+            {loading && <Loader2 className="size-4 animate-spin mr-2" />}
             {loading ? "Menyimpan..." : "Simpan Data"}
           </Button>
         </form>
