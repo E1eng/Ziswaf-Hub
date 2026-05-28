@@ -191,6 +191,96 @@ export type Database = {
         }
         Relationships: []
       }
+      mustahik_proposals: {
+        Row: {
+          id: string
+          nik: string
+          full_name: string
+          kecamatan_id: string | null
+          asnaf_category: string
+          metrics: Json
+          priority_score: number
+          allocated_amount: number
+          status: string
+          disbursement_batch_id: string | null
+          source: string
+          submitted_at: string | null
+          reviewed_at: string | null
+          disbursed_at: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          nik: string
+          full_name: string
+          kecamatan_id?: string | null
+          asnaf_category: string
+          metrics?: Json
+          priority_score?: number
+          allocated_amount?: number
+          status?: string
+          disbursement_batch_id?: string | null
+          source?: string
+          submitted_at?: string | null
+          reviewed_at?: string | null
+          disbursed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          nik?: string
+          full_name?: string
+          kecamatan_id?: string | null
+          asnaf_category?: string
+          metrics?: Json
+          priority_score?: number
+          allocated_amount?: number
+          status?: string
+          disbursement_batch_id?: string | null
+          source?: string
+          submitted_at?: string | null
+          reviewed_at?: string | null
+          disbursed_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      disbursement_batches: {
+        Row: {
+          id: string
+          batch_code: string
+          total_amount: number
+          beneficiary_count: number
+          fund_type: string
+          status: string
+          kecamatan_summary: Json
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          batch_code: string
+          total_amount?: number
+          beneficiary_count?: number
+          fund_type: string
+          status?: string
+          kecamatan_summary?: Json
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          batch_code?: string
+          total_amount?: number
+          beneficiary_count?: number
+          fund_type?: string
+          status?: string
+          kecamatan_summary?: Json
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       audit_ledger: {
         Row: {
           amount: number

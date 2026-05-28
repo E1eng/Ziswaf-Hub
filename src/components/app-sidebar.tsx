@@ -1,18 +1,12 @@
 "use client";
 
 import {
-  BarChart3,
-  Target,
-  FileBarChart,
   Settings,
-  PlusCircle,
   LayoutDashboard,
-  GitCompare,
   LogOut,
   Calculator,
-  Map,
-  Wallet,
   Search,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -37,24 +31,14 @@ const navItems = [
     label: "Utama",
     items: [
       { title: "Beranda", href: "/dashboard", icon: LayoutDashboard },
-      { title: "Rekomendasi Daerah", href: "/dashboard/targeting", icon: Target },
+      { title: "E-Proposal", href: "/dashboard/proposal", icon: FileText },
       { title: "Alokasi Cerdas", href: "/dashboard/alokasi", icon: Calculator },
-      { title: "Peta Kecamatan", href: "/dashboard/peta", icon: Map },
-    ],
-  },
-  {
-    label: "Data Lembaga",
-    items: [
-      { title: "Pengumpulan", href: "/dashboard/pengumpulan", icon: FileBarChart },
-      { title: "Penyaluran", href: "/dashboard/penyaluran", icon: BarChart3 },
-      { title: "Tambah Data", href: "/dashboard/input", icon: PlusCircle },
     ],
   },
   {
     label: "Lainnya",
     items: [
-      { title: "Perbandingan", href: "/dashboard/benchmark", icon: GitCompare },
-      { title: "Lacak Donasi", href: "/lacak", icon: Search },
+      { title: "Lacak Penyaluran", href: "/lacak", icon: Search },
       { title: "Pengaturan", href: "/dashboard/pengaturan", icon: Settings },
     ],
   },

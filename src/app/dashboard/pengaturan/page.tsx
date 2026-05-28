@@ -7,37 +7,18 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
-import { Shield, Database, Scale, Plug, Info } from "lucide-react";
-import { IntegrationsPanel } from "./integrations-panel";
+import { Shield, Database, Scale } from "lucide-react";
 
 export default function PengaturanPage() {
   return (
     <div className="flex flex-col">
       <PageHeader
         title="Pengaturan"
-        description="Informasi akun lembaga, integrasi, dan platform"
+        description="Informasi lembaga dan platform"
       />
 
       <main className="flex-1 p-6 space-y-6">
-        <Tabs defaultValue="general" className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="general" className="gap-2">
-              <Info className="size-4" />
-              Umum
-            </TabsTrigger>
-            <TabsTrigger value="integrations" className="gap-2">
-              <Plug className="size-4" />
-              Integrasi Pihak Ketiga
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="integrations" className="space-y-6">
-            <IntegrationsPanel />
-          </TabsContent>
-
-          <TabsContent value="general" className="space-y-8">
         <Card>
           <CardHeader>
             <CardTitle className="text-xl">Profil Lembaga</CardTitle>
@@ -67,7 +48,7 @@ export default function PengaturanPage() {
               <Database className="size-5" />
               <CardTitle className="text-xl">Sumber Data Platform</CardTitle>
             </div>
-            <CardDescription className="text-sm">Data yang digunakan untuk rekomendasi & perbandingan</CardDescription>
+            <CardDescription className="text-sm">Data yang digunakan untuk analitik & rekomendasi</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -87,12 +68,6 @@ export default function PengaturanPage() {
                 <p className="text-base font-semibold">BWI / SIWAK</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Data aset wakaf nasional: lokasi, sertifikasi, produktivitas.
-                </p>
-              </div>
-              <div className="p-4 border rounded-xl">
-                <p className="text-base font-semibold">Lembaga Terdaftar</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Data yang dicatat oleh lembaga-lembaga yang terdaftar di ZISWAF Hub.
                 </p>
               </div>
             </div>
@@ -148,8 +123,6 @@ export default function PengaturanPage() {
             </div>
           </CardContent>
         </Card>
-          </TabsContent>
-        </Tabs>
       </main>
     </div>
   );

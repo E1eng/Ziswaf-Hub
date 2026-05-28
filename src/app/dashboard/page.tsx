@@ -6,133 +6,74 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { PageHeader } from "@/components/page-header";
 import {
-  TrendingUp,
-  TrendingDown,
-  Banknote,
-  Target,
   ArrowRight,
-  PlusCircle,
-  Wallet,
+  FileText,
   Calculator,
-  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Send,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
-import { SectorChart } from "@/components/charts/sector-chart";
-import { ZiswafBreakdownChart } from "@/components/charts/ziswaf-breakdown-chart";
+import { formatRupiah, formatNumber } from "@/lib/utils/format";
 
 async function getDashboardData() {
   const supabase = await createClient();
-  const year = 2024;
-  const prevYear = 2023;
 
   const [
-    { data: collCur },
-    { data: collPrev },
-    { data: distCur },
-    { data: gapRows },
-    { data: wakafSummary },
-    { data: treasuryRow },
+    { data: proposals },
+    { data: batches },
+    { data: recentProposals },
+    { data: recentBatches },
   ] = await Promise.all([
-    supabase.from("mv_collection_by_region_year")
-      .select("total_amount, total_donors, ziswaf_category")
-      .eq("year", year),
-    supabase.from("mv_collection_by_region_year").select("total_amount").eq("year", prevYear),
-    supabase.from("mv_distribution_by_region_year")
-      .select("region_name, sector_name, total_amount, total_beneficiaries")
-      .eq("year", year),
-    supabase.from("mv_gap_analysis")
-      .select("region_name, poverty_rate, gap_percentage, population")
-      .eq("year", year)
-      .order("poverty_rate", { ascending: false })
+    supabase.from("mustahik_proposals").select("status, allocated_amount"),
+    supabase.from("disbursement_batches").select("total_amount, beneficiary_count"),
+    supabase.from("mustahik_proposals")
+      .select("id, full_name, asnaf_category, status, priority_score, allocated_amount, submitted_at")
+      .order("submitted_at", { ascending: false })
       .limit(5),
-    supabase.from("mv_wakaf_summary_by_province")
-      .select("total_locations, productive_count, total_estimated_value, total_area_hectares"),
-    supabase.from("treasury_balances")
-      .select("zakat_balance, infaq_balance, wakaf_balance")
-      .limit(1)
-      .single(),
+    supabase.from("disbursement_batches")
+      .select("batch_code, total_amount, beneficiary_count, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
-  const totalCollection = (collCur || []).reduce((s, r) => s + (r.total_amount || 0), 0);
-  const totalCollPrev = (collPrev || []).reduce((s, r) => s + (r.total_amount || 0), 0);
-  const collChange = totalCollPrev > 0 ? ((totalCollection - totalCollPrev) / totalCollPrev) * 100 : 0;
-  const totalDonors = (collCur || []).reduce((s, r) => s + (r.total_donors || 0), 0);
+  const all = proposals || [];
+  const pending = all.filter(p => p.status === "PENDING").length;
+  const approved = all.filter(p => p.status === "APPROVED").length;
+  const disbursed = all.filter(p => p.status === "DISBURSED").length;
+  const total = all.length;
 
-  // ZISWAF breakdown by category
-  const ziswafMap = new Map<string, number>();
-  for (const c of collCur || []) {
-    const cat = c.ziswaf_category || "lainnya";
-    ziswafMap.set(cat, (ziswafMap.get(cat) || 0) + (c.total_amount || 0));
-  }
-  const ziswafBreakdown = Array.from(ziswafMap.entries())
-    .map(([name, amount]) => ({ name, amount }))
-    .sort((a, b) => b.amount - a.amount);
-
-  const totalDist = (distCur || []).reduce((s, r) => s + (r.total_amount || 0), 0);
-  const totalBenef = (distCur || []).reduce((s, r) => s + (r.total_beneficiaries || 0), 0);
-
-  // Distribution by sector
-  const sectorMap = new Map<string, { amount: number; beneficiaries: number }>();
-  for (const d of distCur || []) {
-    const prev = sectorMap.get(d.sector_name || "") || { amount: 0, beneficiaries: 0 };
-    sectorMap.set(d.sector_name || "", {
-      amount: prev.amount + (d.total_amount || 0),
-      beneficiaries: prev.beneficiaries + (d.total_beneficiaries || 0),
-    });
-  }
-  const sectors = Array.from(sectorMap.entries())
-    .map(([name, data]) => ({ name, ...data }))
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5);
-
-  // ACR
-  const acr = totalCollection > 0 ? (totalDist / totalCollection) * 100 : 0;
-
-  // Wakaf aggregates
-  const wakafLocations = (wakafSummary || []).reduce((s, r) => s + (r.total_locations || 0), 0);
-  const wakafProductive = (wakafSummary || []).reduce((s, r) => s + (r.productive_count || 0), 0);
-  const wakafValue = (wakafSummary || []).reduce((s, r) => s + (r.total_estimated_value || 0), 0);
-  const wakafArea = (wakafSummary || []).reduce((s, r) => s + (r.total_area_hectares || 0), 0);
-  const wakafProductivePct = wakafLocations > 0 ? (wakafProductive / wakafLocations) * 100 : 0;
-
-  // Top priority regions
-  const priorityRegions = (gapRows || []).map((g) => ({
-    name: g.region_name || "",
-    poverty_rate: g.poverty_rate || 0,
-    gap_pct: g.gap_percentage || 0,
-    population: g.population || 0,
-  }));
-
-  // Treasury
-  const treasury = treasuryRow ? {
-    zakat: Number(treasuryRow.zakat_balance || 0),
-    infaq: Number(treasuryRow.infaq_balance || 0),
-    wakaf: Number(treasuryRow.wakaf_balance || 0),
-    total: Number(treasuryRow.zakat_balance || 0) + Number(treasuryRow.infaq_balance || 0) + Number(treasuryRow.wakaf_balance || 0),
-  } : { zakat: 0, infaq: 0, wakaf: 0, total: 0 };
+  const totalDisbursed = (batches || []).reduce((s, b) => s + (b.total_amount || 0), 0);
+  const totalBeneficiaries = (batches || []).reduce((s, b) => s + (b.beneficiary_count || 0), 0);
+  const totalBatches = (batches || []).length;
 
   return {
-    totalCollection, collChange, totalDonors,
-    totalDist, totalBenef, acr,
-    ziswafBreakdown, treasury,
-    wakafLocations, wakafProductivePct, wakafValue, wakafArea,
-    sectors, priorityRegions,
+    pending, approved, disbursed, total,
+    totalDisbursed, totalBeneficiaries, totalBatches,
+    recentProposals: recentProposals || [],
+    recentBatches: recentBatches || [],
   };
 }
 
 export default async function DashboardPage() {
   const d = await getDashboardData();
 
+  const statusLabel: Record<string, { text: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    PENDING: { text: "Menunggu", variant: "outline" },
+    APPROVED: { text: "Disetujui", variant: "secondary" },
+    REJECTED: { text: "Ditolak", variant: "destructive" },
+    DISBURSED: { text: "Disalurkan", variant: "default" },
+  };
+
   return (
     <div className="flex flex-col">
       <PageHeader
         title="Beranda"
-        description="Ringkasan data ZISWAF lembaga Anda"
+        description="Ringkasan aktivitas lembaga Anda"
       />
 
       <main className="flex-1 p-8 space-y-8">
@@ -140,192 +81,171 @@ export default async function DashboardPage() {
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">Total Pengumpulan</CardTitle>
-              <Banknote className="size-5 text-muted-foreground" />
+              <CardTitle className="text-base font-medium text-muted-foreground">Total Proposal</CardTitle>
+              <FileText className="size-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{formatRupiah(d.totalCollection)}</div>
-              <div className="flex items-center gap-1.5 mt-2">
-                {d.collChange > 0 ? <TrendingUp className="size-4 text-green-600" /> : <TrendingDown className="size-4 text-red-600" />}
-                <span className={`text-sm font-medium ${d.collChange > 0 ? "text-green-600" : "text-red-600"}`}>
-                  {d.collChange > 0 ? "+" : ""}{formatPct(d.collChange)} dari tahun lalu
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">Penyaluran</CardTitle>
-              <Target className="size-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatRupiah(d.totalDist)}</div>
+              <div className="text-3xl font-bold">{d.total}</div>
               <p className="text-sm text-muted-foreground mt-2">
-                {formatNumber(d.totalBenef, true)} orang menerima bantuan
+                {d.pending} menunggu &middot; {d.approved} disetujui
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">Rasio Penyaluran</CardTitle>
-              <Badge variant={d.acr >= 70 ? "secondary" : "destructive"} className="text-sm">
-                {d.acr >= 70 ? "Baik" : "Perlu Ditingkatkan"}
-              </Badge>
+              <CardTitle className="text-base font-medium text-muted-foreground">Menunggu Review</CardTitle>
+              <Clock className="size-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{formatPct(d.acr)}</div>
+              <div className="text-3xl font-bold">{d.pending}</div>
               <p className="text-sm text-muted-foreground mt-2">
-                Dari total yang dikumpulkan, berapa % yang sudah disalurkan
+                Proposal perlu ditinjau
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-medium text-muted-foreground">Saldo Treasury</CardTitle>
-              <Wallet className="size-5 text-muted-foreground" />
+              <CardTitle className="text-base font-medium text-muted-foreground">Sudah Disalurkan</CardTitle>
+              <CheckCircle className="size-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{formatRupiah(d.treasury.total)}</div>
+              <div className="text-3xl font-bold">{formatRupiah(d.totalDisbursed)}</div>
               <p className="text-sm text-muted-foreground mt-2">
-                Zakat {formatRupiah(d.treasury.zakat)}
+                {formatNumber(d.totalBeneficiaries)} penerima &middot; {d.totalBatches} batch
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-base font-medium text-muted-foreground">Siap Disalurkan</CardTitle>
+              <Send className="size-5 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{d.approved}</div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Proposal disetujui, belum disalurkan
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick Actions + Priority */}
-        <div className="grid gap-5 md:grid-cols-2">
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Yang Bisa Anda Lakukan</CardTitle>
-              <CardDescription className="text-sm">Pilih menu di bawah untuk melanjutkan</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Link
-                href="/dashboard/targeting"
-                className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
-              >
-                <div className="p-3 bg-primary/10 rounded-xl">
-                  <Target className="size-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-semibold group-hover:text-primary">Lihat Rekomendasi Daerah</p>
-                  <p className="text-sm text-muted-foreground">Daerah mana yang paling butuh bantuan</p>
-                </div>
-                <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <Link
-                href="/dashboard/alokasi"
-                className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
-              >
-                <div className="p-3 bg-green-500/10 rounded-xl">
-                  <Calculator className="size-6 text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-semibold group-hover:text-green-600">Alokasi Cerdas</p>
-                  <p className="text-sm text-muted-foreground">Hitung alokasi optimal + salurkan dana</p>
-                </div>
-                <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <Link
-                href="/dashboard/input"
-                className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
-              >
-                <div className="p-3 bg-amber-500/10 rounded-xl">
-                  <PlusCircle className="size-6 text-amber-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-semibold group-hover:text-amber-600">Tambah Data Baru</p>
-                  <p className="text-sm text-muted-foreground">Catat data pengumpulan atau penyaluran</p>
-                </div>
-                <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </CardContent>
-          </Card>
+        {/* Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Yang Bisa Anda Lakukan</CardTitle>
+            <CardDescription className="text-sm">Pilih menu di bawah untuk melanjutkan</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            <Link
+              href="/dashboard/proposal"
+              className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
+            >
+              <div className="p-3 bg-primary/10 rounded-xl">
+                <FileText className="size-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-semibold group-hover:text-primary">E-Proposal</p>
+                <p className="text-sm text-muted-foreground">Kelola pengajuan mustahik</p>
+              </div>
+              <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </Link>
+            <Link
+              href="/dashboard/alokasi"
+              className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
+            >
+              <div className="p-3 bg-green-500/10 rounded-xl">
+                <Calculator className="size-6 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-semibold group-hover:text-green-600">Alokasi Cerdas</p>
+                <p className="text-sm text-muted-foreground">Seleksi & salurkan ke penerima</p>
+              </div>
+              <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </Link>
+            <Link
+              href="/lacak"
+              className="flex items-center gap-4 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
+            >
+              <div className="p-3 bg-amber-500/10 rounded-xl">
+                <Users className="size-6 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-semibold group-hover:text-amber-600">Lacak Penyaluran</p>
+                <p className="text-sm text-muted-foreground">Cek status batch penyaluran</p>
+              </div>
+              <ArrowRight className="size-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </CardContent>
+        </Card>
 
-          {/* Priority Regions */}
+        {/* Recent Data */}
+        <div className="grid gap-5 md:grid-cols-2">
+          {/* Recent Proposals */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl">Daerah yang Butuh Bantuan</CardTitle>
-                  <CardDescription className="text-sm">Daerah dengan tingkat kemiskinan tertinggi</CardDescription>
-                </div>
-                <Link href="/dashboard/targeting" className="text-xs text-primary hover:underline">
-                  Selengkapnya
+                <CardTitle className="text-xl">Proposal Terbaru</CardTitle>
+                <Link href="/dashboard/proposal" className="text-xs text-primary hover:underline">
+                  Lihat Semua
                 </Link>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {d.priorityRegions.map((r, i) => (
-                  <div key={r.name} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-muted-foreground w-5">{i + 1}</span>
-                      <span className="text-base">{r.name}</span>
+              {d.recentProposals.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">Belum ada proposal</p>
+              ) : (
+                <div className="space-y-2">
+                  {d.recentProposals.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div>
+                        <p className="text-sm font-medium">{p.full_name}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{p.asnaf_category} &middot; Skor {p.priority_score}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{formatRupiah(p.allocated_amount || 0)}</span>
+                        <Badge variant={statusLabel[p.status]?.variant || "outline"} className="text-xs">
+                          {statusLabel[p.status]?.text || p.status}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="destructive" className="text-sm px-2.5 py-0.5">
-                        Kemiskinan {formatPct(r.poverty_rate)}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Batches */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl">Penyaluran Terbaru</CardTitle>
+                <Link href="/lacak" className="text-xs text-primary hover:underline">
+                  Lacak
+                </Link>
               </div>
+            </CardHeader>
+            <CardContent>
+              {d.recentBatches.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">Belum ada penyaluran</p>
+              ) : (
+                <div className="space-y-2">
+                  {d.recentBatches.map((b) => (
+                    <div key={b.batch_code} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div>
+                        <p className="text-sm font-medium font-mono">{b.batch_code}</p>
+                        <p className="text-xs text-muted-foreground">{b.beneficiary_count} penerima</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{formatRupiah(b.total_amount || 0)}</p>
+                        <Badge variant="default" className="text-xs">{b.status}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
-
-        {/* ZISWAF Breakdown + Sector Distribution */}
-        <div className="grid gap-5 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Jenis Dana yang Terkumpul</CardTitle>
-              <CardDescription className="text-sm">Pembagian pengumpulan: Zakat, Infaq, Sedekah, Wakaf (tahun 2024)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ZiswafBreakdownChart data={d.ziswafBreakdown} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">Penyaluran ke Bidang Apa Saja</CardTitle>
-              <CardDescription className="text-sm">Kemana saja dana disalurkan pada tahun 2024</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SectorChart data={d.sectors} />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Wakaf Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Data Wakaf</CardTitle>
-            <CardDescription className="text-sm">Jumlah dan kondisi aset wakaf yang tercatat</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-5 bg-purple-50 rounded-xl">
-                <p className="text-3xl font-bold text-purple-600">{formatNumber(d.wakafLocations)}</p>
-                <p className="text-sm text-muted-foreground mt-2">Lokasi Wakaf</p>
-              </div>
-              <div className="text-center p-5 bg-purple-50 rounded-xl">
-                <p className="text-3xl font-bold text-purple-600">{formatPct(d.wakafProductivePct)}</p>
-                <p className="text-sm text-muted-foreground mt-2">Sudah Produktif</p>
-              </div>
-              <div className="text-center p-5 bg-purple-50 rounded-xl">
-                <p className="text-3xl font-bold text-purple-600">{formatRupiah(d.wakafValue)}</p>
-                <p className="text-sm text-muted-foreground mt-2">Perkiraan Nilai</p>
-              </div>
-              <div className="text-center p-5 bg-purple-50 rounded-xl">
-                <p className="text-3xl font-bold text-purple-600">{formatNumber(Math.round(d.wakafArea))}</p>
-                <p className="text-sm text-muted-foreground mt-2">Total Luas (Hektar)</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </main>
     </div>
   );

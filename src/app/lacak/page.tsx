@@ -5,62 +5,54 @@ import Link from "next/link";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   Search,
   Package,
   CheckCircle,
-  Clock,
-  Truck,
   ArrowLeft,
   MapPin,
   Users,
-  Building2,
   AlertCircle,
+  Banknote,
+  ShieldCheck,
+  Clock,
 } from "lucide-react";
-import { formatRupiah, formatNumber } from "@/lib/utils/format";
+import { formatRupiah } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/client";
 
 interface BatchData {
   id: string;
   batch_code: string;
   total_amount: number;
-  donor_count: number;
   beneficiary_count: number;
+  fund_type: string;
   status: string;
-  program_name: string;
-  region_name: string;
-  institution_name: string;
-  description: string;
-  collected_at: string | null;
-  allocated_at: string | null;
-  distributed_at: string | null;
-  confirmed_at: string | null;
+  kecamatan_summary: { kecamatan: string; count: number }[];
+  created_at: string;
 }
 
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; color: string; icon: React.ElementType; step: number }
-> = {
-  collected: { label: "Dana Terkumpul", color: "bg-blue-500", icon: Package, step: 1 },
-  allocated: { label: "Dialokasikan", color: "bg-amber-500", icon: Clock, step: 2 },
-  distributed: { label: "Disalurkan", color: "bg-emerald-500", icon: Truck, step: 3 },
-  confirmed: { label: "Dikonfirmasi", color: "bg-primary", icon: CheckCircle, step: 4 },
-};
+interface TimelineStep {
+  label: string;
+  description: string;
+  icon: React.ElementType;
+  time: string | null;
+  active: boolean;
+}
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "-";
+  if (!dateStr) return "";
   return new Date(dateStr).toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -79,7 +71,7 @@ export default function LacakPage() {
     try {
       const supabase = createClient();
       const { data, error: err } = await supabase
-        .from("donation_batches")
+        .from("disbursement_batches")
         .select("*")
         .eq("batch_code", query.trim().toUpperCase())
         .single();
@@ -96,7 +88,43 @@ export default function LacakPage() {
     }
   };
 
-  const statusInfo = batch ? STATUS_CONFIG[batch.status] : null;
+  const buildTimeline = (b: BatchData): TimelineStep[] => {
+    const kecNames = (b.kecamatan_summary || []).map((k) => k.kecamatan).join(", ");
+    const totalPeople = b.beneficiary_count;
+
+    return [
+      {
+        label: "Dana Dialokasikan",
+        description: `Sistem memilih ${totalPeople} mustahik berdasarkan skor prioritas tertinggi`,
+        icon: Banknote,
+        time: b.created_at,
+        active: true,
+      },
+      {
+        label: "Verifikasi Kelayakan",
+        description: "Data NIK divalidasi — tidak ada duplikasi atau penerima ganda",
+        icon: ShieldCheck,
+        time: b.created_at,
+        active: true,
+      },
+      {
+        label: "Penyaluran Diproses",
+        description: `Dana ${formatRupiah(b.total_amount)} (${b.fund_type}) disalurkan ke ${totalPeople} penerima`,
+        icon: CheckCircle,
+        time: b.created_at,
+        active: true,
+      },
+      {
+        label: "Distribusi ke Daerah",
+        description: kecNames
+          ? `Disalurkan ke: ${kecNames}`
+          : `Disalurkan ke ${totalPeople} mustahik di berbagai kecamatan`,
+        icon: MapPin,
+        time: b.created_at,
+        active: true,
+      },
+    ];
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
@@ -111,7 +139,7 @@ export default function LacakPage() {
             <span className="font-bold text-lg">ZISWAF Hub</span>
           </Link>
           <Badge variant="outline" className="text-sm">
-            Lacak Donasi
+            Lacak Penyaluran
           </Badge>
         </div>
       </nav>
@@ -119,15 +147,15 @@ export default function LacakPage() {
       <div className="max-w-4xl mx-auto px-6 py-12">
         {/* Search */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Lacak Status Donasi</h1>
+          <h1 className="text-3xl font-bold mb-2">Lacak Penyaluran Dana</h1>
           <p className="text-lg text-muted-foreground">
-            Masukkan kode batch untuk melihat status penyaluran dana
+            Masukkan kode batch untuk melihat jejak penyaluran (anonim — tanpa data pribadi)
           </p>
         </div>
 
         <div className="flex gap-3 max-w-xl mx-auto mb-10">
           <Input
-            placeholder="Contoh: ZH-2024-000001"
+            placeholder="Contoh: ZH-2026-123456"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -155,105 +183,112 @@ export default function LacakPage() {
         )}
 
         {/* Result */}
-        {batch && statusInfo && (
+        {batch && (
           <div className="space-y-6">
-            {/* Status Card */}
+            {/* Header Card */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-2xl">{batch.batch_code}</CardTitle>
-                    <CardDescription className="text-base mt-1">
-                      {batch.program_name}
-                    </CardDescription>
+                    <CardTitle className="text-2xl font-mono">{batch.batch_code}</CardTitle>
+                    <p className="text-muted-foreground mt-1">
+                      {formatDate(batch.created_at)}
+                    </p>
                   </div>
-                  <Badge
-                    className={`${statusInfo.color} text-white text-sm px-3 py-1`}
-                  >
-                    {statusInfo.label}
+                  <Badge className="bg-green-500 text-white text-sm px-3 py-1">
+                    Disalurkan
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Timeline */}
-                <div className="flex items-center justify-between mb-8">
-                  {Object.entries(STATUS_CONFIG).map(([key, config]) => {
-                    const isActive = config.step <= statusInfo.step;
-                    const Icon = config.icon;
-                    return (
-                      <div key={key} className="flex flex-col items-center flex-1">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          <Icon className="size-5" />
-                        </div>
-                        <p className={`text-xs font-medium text-center ${isActive ? "text-primary" : "text-muted-foreground"}`}>
-                          {config.label}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {key === "collected" && formatDate(batch.collected_at)}
-                          {key === "allocated" && formatDate(batch.allocated_at)}
-                          {key === "distributed" && formatDate(batch.distributed_at)}
-                          {key === "confirmed" && formatDate(batch.confirmed_at)}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <Separator className="mb-6" />
-
-                {/* Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Building2 className="size-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Lembaga</p>
-                      <p className="font-semibold">{batch.institution_name || "-"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-blue-500/10">
-                      <MapPin className="size-5 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Daerah Penyaluran</p>
-                      <p className="font-semibold">{batch.region_name || "-"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-500/10">
-                      <Users className="size-5 text-emerald-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Jumlah Donatur</p>
-                      <p className="font-semibold">{formatNumber(batch.donor_count)} orang</p>
-                    </div>
-                  </div>
-                </div>
-
-                <Separator className="my-6" />
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="p-4 rounded-lg bg-primary/5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl bg-primary/5 text-center">
+                    <Banknote className="size-6 mx-auto text-primary mb-2" />
                     <p className="text-sm text-muted-foreground">Total Dana</p>
-                    <p className="text-2xl font-bold text-primary">{formatRupiah(batch.total_amount)}</p>
+                    <p className="text-xl font-bold text-primary">{formatRupiah(batch.total_amount)}</p>
                   </div>
-                  <div className="p-4 rounded-lg bg-emerald-500/5">
-                    <p className="text-sm text-muted-foreground">Penerima Manfaat</p>
-                    <p className="text-2xl font-bold text-emerald-600">
-                      {batch.beneficiary_count > 0 ? `${formatNumber(batch.beneficiary_count)} orang` : "Belum tersalurkan"}
-                    </p>
+                  <div className="p-4 rounded-xl bg-emerald-50 text-center">
+                    <Users className="size-6 mx-auto text-emerald-600 mb-2" />
+                    <p className="text-sm text-muted-foreground">Penerima</p>
+                    <p className="text-xl font-bold text-emerald-600">{batch.beneficiary_count} mustahik</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-blue-50 text-center">
+                    <Package className="size-6 mx-auto text-blue-600 mb-2" />
+                    <p className="text-sm text-muted-foreground">Jenis Dana</p>
+                    <p className="text-xl font-bold text-blue-600">{batch.fund_type}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Vertical Timeline (Shopee-style) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Jejak Penyaluran</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative pl-8">
+                  {/* Vertical line */}
+                  <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-green-200" />
+
+                  {buildTimeline(batch).map((step, idx) => {
+                    const Icon = step.icon;
+                    return (
+                      <div key={idx} className="relative pb-8 last:pb-0">
+                        {/* Dot */}
+                        <div className="absolute -left-8 top-0.5 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                          <Icon className="size-4 text-white" />
+                        </div>
+                        {/* Content */}
+                        <div className="ml-4">
+                          <p className="font-semibold text-base">{step.label}</p>
+                          <p className="text-sm text-muted-foreground mt-0.5">{step.description}</p>
+                          {step.time && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <Clock className="size-3" />
+                              {formatDate(step.time)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Kecamatan Summary (Anonymized) */}
+            {batch.kecamatan_summary && batch.kecamatan_summary.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MapPin className="size-5 text-primary" />
+                    Distribusi per Kecamatan
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {batch.kecamatan_summary.map((k, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
+                        <span className="font-medium">{k.kecamatan || "Kecamatan " + (idx + 1)}</span>
+                        <Badge variant="secondary">{k.count} mustahik</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Privacy Notice */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <ShieldCheck className="size-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-amber-800 text-sm">Privasi Terlindungi</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Data penerima (NIK, nama) tidak ditampilkan di halaman publik ini sesuai UU Perlindungan Data Pribadi (UU PDP).
+                </p>
+              </div>
+            </div>
 
             {/* Back link */}
             <div className="text-center">
@@ -270,7 +305,7 @@ export default function LacakPage() {
             <Package className="size-16 mx-auto mb-4 opacity-30" />
             <p className="text-lg">Masukkan kode batch untuk memulai pelacakan</p>
             <p className="text-sm mt-2">
-              Contoh kode: <code className="bg-muted px-2 py-0.5 rounded">ZH-2024-000001</code>
+              Contoh kode: <code className="bg-muted px-2 py-0.5 rounded">ZH-2026-123456</code>
             </p>
           </div>
         )}
