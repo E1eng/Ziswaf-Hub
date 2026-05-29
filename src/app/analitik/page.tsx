@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
 import { ArrowRight } from "lucide-react";
 import { ZiswafBreakdownChart } from "@/components/charts/ziswaf-breakdown-chart";
+import { AnalitikFilters } from "./analitik-filters";
 
 async function getAnalitikData() {
   const supabase = await createClient();
@@ -28,14 +29,14 @@ async function getAnalitikData() {
     supabase.from("mv_wakaf_summary_by_province").select("total_locations, productive_count, total_estimated_value"),
   ]);
 
-  const gap = gapRows || [];
+  const gap = (gapRows || []) as Record<string, any>[];
   const totalPotential = gap.reduce((s, r) => s + (r.estimated_potential || 0), 0);
   const totalActual = gap.reduce((s, r) => s + (r.actual_collection || 0), 0);
   const gapPct = totalPotential > 0 ? ((totalPotential - totalActual) / totalPotential) * 100 : 0;
 
   // Top provinces by collection
   const provMap = new Map<string, number>();
-  for (const c of collRows || []) {
+  for (const c of (collRows || []) as Record<string, any>[]) {
     provMap.set(c.region_name || "", (provMap.get(c.region_name || "") || 0) + (c.total_amount || 0));
   }
   const topProvinces = Array.from(provMap.entries())
@@ -45,7 +46,7 @@ async function getAnalitikData() {
 
   // Distribution by sector
   const sectorMap = new Map<string, { amount: number; beneficiaries: number }>();
-  for (const d of distRows || []) {
+  for (const d of (distRows || []) as Record<string, any>[]) {
     const prev = sectorMap.get(d.sector_name || "") || { amount: 0, beneficiaries: 0 };
     sectorMap.set(d.sector_name || "", {
       amount: prev.amount + (d.total_amount || 0),
@@ -58,21 +59,23 @@ async function getAnalitikData() {
   const totalDist = sectors.reduce((s, r) => s + r.amount, 0);
   const totalBenef = sectors.reduce((s, r) => s + r.beneficiaries, 0);
 
-  // Gap top 5 worst
-  const top5Gap = gap.slice(0, 5);
+  // All gap data sorted
+  const allGap = gap;
 
   // Wakaf
+  const wakafArr = (wakaf || []) as Record<string, any>[];
   const wakafTotal = {
-    locations: (wakaf || []).reduce((s, r) => s + (r.total_locations || 0), 0),
-    productive: (wakaf || []).reduce((s, r) => s + (r.productive_count || 0), 0),
-    value: (wakaf || []).reduce((s, r) => s + (r.total_estimated_value || 0), 0),
+    locations: wakafArr.reduce((s, r) => s + (r.total_locations || 0), 0),
+    productive: wakafArr.reduce((s, r) => s + (r.productive_count || 0), 0),
+    value: wakafArr.reduce((s, r) => s + (r.total_estimated_value || 0), 0),
   };
 
-  const totalCollection = (collRows || []).reduce((s, r) => s + (r.total_amount || 0), 0);
+  const collArr = (collRows || []) as Record<string, any>[];
+  const totalCollection = collArr.reduce((s, r) => s + (r.total_amount || 0), 0);
 
   // ZISWAF category breakdown
   const ziswafMap = new Map<string, number>();
-  for (const c of collRows || []) {
+  for (const c of collArr) {
     const cat = c.ziswaf_category || "lainnya";
     ziswafMap.set(cat, (ziswafMap.get(cat) || 0) + (c.total_amount || 0));
   }
@@ -80,7 +83,9 @@ async function getAnalitikData() {
     .map(([name, amount]) => ({ name, amount }))
     .sort((a, b) => b.amount - a.amount);
 
-  return { totalCollection, totalDist, totalBenef, totalPotential, gapPct, topProvinces, sectors, top5Gap, wakafTotal, ziswafBreakdown };
+  const provinceNames = gap.map((g) => g.region_name as string).filter(Boolean);
+
+  return { totalCollection, totalDist, totalBenef, totalPotential, gapPct, topProvinces, sectors, allGap, provinceNames, wakafTotal, ziswafBreakdown };
 }
 
 export default async function AnalitikPage() {
@@ -215,29 +220,8 @@ export default async function AnalitikPage() {
           </Card>
         </div>
 
-        {/* Gap Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Daerah yang Paling Butuh Perhatian</CardTitle>
-            <CardDescription className="text-sm">
-              Provinsi dimana potensi ZISWAF masih jauh dari yang terkumpul — artinya masih banyak yang bisa ditingkatkan
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-5">
-              {d.top5Gap.map((g) => (
-                <div key={g.region_id} className="p-4 border rounded-xl text-center space-y-1">
-                  <p className="text-base font-semibold">{g.region_name}</p>
-                  <p className="text-3xl font-bold text-red-600">{formatPct(g.gap_percentage || 0)}</p>
-                  <p className="text-sm text-muted-foreground">belum tercapai</p>
-                  <Separator className="my-2" />
-                  <p className="text-sm">Kemiskinan: {formatPct(g.poverty_rate || 0)}</p>
-                  <p className="text-sm">IPM: {(g.ipm || 0).toFixed(1)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Gap Analysis — Interactive */}
+        <AnalitikFilters gapData={d.allGap as any} provinceNames={d.provinceNames} />
 
         {/* Wakaf Summary */}
         <Card>

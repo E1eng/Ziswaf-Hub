@@ -77,6 +77,36 @@ export default async function DashboardPage() {
       />
 
       <main className="flex-1 p-8 space-y-8">
+        {d.total === 0 && (
+          <Card className="border-dashed border-2">
+            <CardContent className="pt-8 pb-8 text-center space-y-4">
+              <div className="size-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                <FileText className="size-8 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold">Selamat Datang di ZISWAF Hub</h2>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Belum ada data proposal. Ikuti langkah berikut untuk memulai:
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+                <Link href="/dashboard/proposal" className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors">
+                  <span className="bg-primary-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">1</span>
+                  Ajukan Proposal
+                </Link>
+                <ArrowRight className="size-4 text-muted-foreground hidden sm:block" />
+                <span className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg text-muted-foreground">
+                  <span className="bg-muted-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">2</span>
+                  Review & Setujui
+                </span>
+                <ArrowRight className="size-4 text-muted-foreground hidden sm:block" />
+                <span className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg text-muted-foreground">
+                  <span className="bg-muted-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">3</span>
+                  Alokasi Cerdas
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* KPI Cards */}
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           <Card>

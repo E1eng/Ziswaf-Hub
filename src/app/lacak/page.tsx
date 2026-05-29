@@ -35,6 +35,9 @@ interface BatchData {
   status: string;
   kecamatan_summary: { kecamatan: string; count: number }[];
   created_at: string;
+  verified_at: string | null;
+  disbursed_at: string | null;
+  received_at: string | null;
 }
 
 interface TimelineStep {
@@ -79,7 +82,7 @@ export default function LacakPage() {
       if (err || !data) {
         setError("Batch tidak ditemukan. Pastikan kode batch sudah benar.");
       } else {
-        setBatch(data as BatchData);
+        setBatch(data as unknown as BatchData);
       }
     } catch {
       setError("Terjadi kesalahan. Coba lagi.");
@@ -91,6 +94,8 @@ export default function LacakPage() {
   const buildTimeline = (b: BatchData): TimelineStep[] => {
     const kecNames = (b.kecamatan_summary || []).map((k) => k.kecamatan).join(", ");
     const totalPeople = b.beneficiary_count;
+    const statusOrder = ["PROCESSING", "VERIFIED", "DISBURSED", "RECEIVED"];
+    const currentIdx = statusOrder.indexOf(b.status);
 
     return [
       {
@@ -98,30 +103,30 @@ export default function LacakPage() {
         description: `Sistem memilih ${totalPeople} mustahik berdasarkan skor prioritas tertinggi`,
         icon: Banknote,
         time: b.created_at,
-        active: true,
+        active: currentIdx >= 0,
       },
       {
         label: "Verifikasi Kelayakan",
         description: "Data NIK divalidasi — tidak ada duplikasi atau penerima ganda",
         icon: ShieldCheck,
-        time: b.created_at,
-        active: true,
+        time: b.verified_at,
+        active: currentIdx >= 1,
       },
       {
-        label: "Penyaluran Diproses",
-        description: `Dana ${formatRupiah(b.total_amount)} (${b.fund_type}) disalurkan ke ${totalPeople} penerima`,
+        label: "Dana Disalurkan",
+        description: `Dana ${formatRupiah(b.total_amount)} (${b.fund_type}) ditransfer ke ${totalPeople} penerima`,
         icon: CheckCircle,
-        time: b.created_at,
-        active: true,
+        time: b.disbursed_at,
+        active: currentIdx >= 2,
       },
       {
-        label: "Distribusi ke Daerah",
+        label: "Diterima Mustahik",
         description: kecNames
-          ? `Disalurkan ke: ${kecNames}`
-          : `Disalurkan ke ${totalPeople} mustahik di berbagai kecamatan`,
+          ? `Diterima di: ${kecNames}`
+          : `Diterima oleh ${totalPeople} mustahik`,
         icon: MapPin,
-        time: b.created_at,
-        active: true,
+        time: b.received_at,
+        active: currentIdx >= 3,
       },
     ];
   };
@@ -195,8 +200,15 @@ export default function LacakPage() {
                       {formatDate(batch.created_at)}
                     </p>
                   </div>
-                  <Badge className="bg-green-500 text-white text-sm px-3 py-1">
-                    Disalurkan
+                  <Badge className={`text-sm px-3 py-1 ${
+                    batch.status === "RECEIVED" ? "bg-emerald-500 text-white" :
+                    batch.status === "DISBURSED" ? "bg-green-500 text-white" :
+                    batch.status === "VERIFIED" ? "bg-amber-500 text-white" :
+                    "bg-blue-500 text-white"
+                  }`}>
+                    {batch.status === "RECEIVED" ? "Diterima" :
+                     batch.status === "DISBURSED" ? "Disalurkan" :
+                     batch.status === "VERIFIED" ? "Terverifikasi" : "Diproses"}
                   </Badge>
                 </div>
               </CardHeader>
@@ -229,25 +241,30 @@ export default function LacakPage() {
               <CardContent>
                 <div className="relative pl-8">
                   {/* Vertical line */}
-                  <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-green-200" />
+                  <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-muted" />
 
                   {buildTimeline(batch).map((step, idx) => {
                     const Icon = step.icon;
                     return (
                       <div key={idx} className="relative pb-8 last:pb-0">
                         {/* Dot */}
-                        <div className="absolute -left-8 top-0.5 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                          <Icon className="size-4 text-white" />
+                        <div className={`absolute -left-8 top-0.5 w-8 h-8 rounded-full flex items-center justify-center ${
+                          step.active ? "bg-green-500" : "bg-muted border-2 border-muted-foreground/20"
+                        }`}>
+                          <Icon className={`size-4 ${step.active ? "text-white" : "text-muted-foreground/50"}`} />
                         </div>
                         {/* Content */}
                         <div className="ml-4">
-                          <p className="font-semibold text-base">{step.label}</p>
+                          <p className={`font-semibold text-base ${!step.active && "text-muted-foreground"}`}>{step.label}</p>
                           <p className="text-sm text-muted-foreground mt-0.5">{step.description}</p>
-                          {step.time && (
+                          {step.active && step.time && (
                             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                               <Clock className="size-3" />
                               {formatDate(step.time)}
                             </p>
+                          )}
+                          {!step.active && (
+                            <p className="text-xs text-muted-foreground/60 mt-1 italic">Menunggu...</p>
                           )}
                         </div>
                       </div>

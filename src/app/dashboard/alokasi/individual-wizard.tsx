@@ -30,6 +30,7 @@ import {
   Send,
   Banknote,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 import { formatRupiah, formatNumber } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/client";
@@ -163,7 +164,7 @@ export function IndividualAllocationWizard() {
       const proposalIds = result.selected.map((s) => s.id);
       const code = "ZH-" + new Date().getFullYear() + "-" + String(Math.floor(Math.random() * 999999)).padStart(6, "0");
 
-      // Create disbursement batch
+      // Create disbursement batch (starts as PROCESSING, admin progresses status)
       const { data: batchData, error: batchErr } = await supabase
         .from("disbursement_batches")
         .insert({
@@ -171,7 +172,7 @@ export function IndividualAllocationWizard() {
           total_amount: result.total_allocated,
           beneficiary_count: result.total_beneficiaries,
           fund_type: "ZISWAF",
-          status: "DISBURSED",
+          status: "PROCESSING",
           kecamatan_summary: [],
         })
         .select("id")
@@ -213,6 +214,23 @@ export function IndividualAllocationWizard() {
       setDisbursing(false);
     }
   }, [result]);
+
+  const exportCSV = useCallback(() => {
+    if (!result || !batchCode) return;
+    const header = "No,Nama,Asnaf,Skor Prioritas,Dana Dialokasikan (Rp)";
+    const rows = result.selected.map((s, i) =>
+      `${i + 1},"${s.full_name}","${s.asnaf_category}",${s.priority_score},${s.allocated_amount}`
+    );
+    const footer = `\n"","TOTAL","","",${result.total_allocated}`;
+    const csv = [header, ...rows].join("\n") + footer;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `penyaluran-${batchCode}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [result, batchCode]);
 
   return (
     <div className="space-y-6">
@@ -426,6 +444,10 @@ export function IndividualAllocationWizard() {
               Kode batch ini dapat digunakan untuk melacak status penyaluran di halaman publik
             </p>
             <div className="flex items-center justify-center gap-3 pt-4">
+              <Button variant="outline" onClick={exportCSV} className="gap-2">
+                <Download className="size-4" />
+                Download CSV
+              </Button>
               <Button variant="outline" onClick={() => { setStep(1); setResult(null); setDisbursementDone(false); setBatchCode(null); }}>
                 Buat Alokasi Baru
               </Button>

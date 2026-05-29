@@ -7,6 +7,8 @@ import {
   Calculator,
   Search,
   FileText,
+  Truck,
+  ClipboardList,
 } from "lucide-react";
 
 import {
@@ -32,7 +34,9 @@ const navItems = [
     items: [
       { title: "Beranda", href: "/dashboard", icon: LayoutDashboard },
       { title: "E-Proposal", href: "/dashboard/proposal", icon: FileText },
+      { title: "Program", href: "/dashboard/program", icon: ClipboardList },
       { title: "Alokasi Cerdas", href: "/dashboard/alokasi", icon: Calculator },
+      { title: "Kelola Penyaluran", href: "/dashboard/penyaluran", icon: Truck },
     ],
   },
   {

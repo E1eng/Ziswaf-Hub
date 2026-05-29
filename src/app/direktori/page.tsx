@@ -31,7 +31,7 @@ async function getDirektoriData() {
     });
   }
 
-  const rows = (institutions || []).map((inst) => {
+  const rows = ((institutions || []) as any[]).map((inst) => {
     const typeInfo = typeLookup.get(inst.institution_type_id) || { code: "", name: "" };
     const coll = collMap.get(inst.id) || { amount: 0, donors: 0 };
     return {

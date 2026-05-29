@@ -131,6 +131,21 @@ export default function ProposalPage() {
     fetchStats();
   }, [fetchProposals, fetchStats]);
 
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("proposals-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "mustahik_proposals" }, (payload) => {
+        const p = payload.new as { full_name?: string };
+        toast.info("Proposal baru masuk", { description: p.full_name || "Data baru" });
+        fetchProposals();
+        fetchStats();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchProposals, fetchStats]);
+
   const handleAction = async (proposalId: string, action: "APPROVED" | "REJECTED") => {
     setProcessing(proposalId);
     const supabase = createClient();

@@ -128,7 +128,7 @@ export function ProposalForm({ onSuccess, onCancel }: Props) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Kategori Asnaf</Label>
-              <Select value={asnaf} onValueChange={setAsnaf}>
+              <Select value={asnaf} onValueChange={(v) => v && setAsnaf(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Pilih kategori" />
                 </SelectTrigger>
@@ -174,7 +174,7 @@ export function ProposalForm({ onSuccess, onCancel }: Props) {
             </div>
             <div className="space-y-2">
               <Label>Status Tempat Tinggal</Label>
-              <Select value={housing} onValueChange={setHousing}>
+              <Select value={housing} onValueChange={(v) => v && setHousing(v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Pilih" />
                 </SelectTrigger>

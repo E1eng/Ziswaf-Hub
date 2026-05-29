@@ -26,11 +26,12 @@ async function getLandingStats() {
     supabase.from("institutions").select("id"),
   ]);
 
-  const totalCollection = (coll || []).reduce((s, r) => s + (r.total_amount || 0), 0);
-  const totalDist = (dist || []).reduce((s, r) => s + (r.total_amount || 0), 0);
-  const totalBenef = (dist || []).reduce((s, r) => s + (r.total_beneficiaries || 0), 0);
-  const totalPotential = (gap || []).reduce((s, r) => s + (r.estimated_potential || 0), 0);
-  const totalActual = (gap || []).reduce((s, r) => s + (r.actual_collection || 0), 0);
+  type R = Record<string, any>;
+  const totalCollection = ((coll || []) as R[]).reduce((s, r) => s + (r.total_amount || 0), 0);
+  const totalDist = ((dist || []) as R[]).reduce((s, r) => s + (r.total_amount || 0), 0);
+  const totalBenef = ((dist || []) as R[]).reduce((s, r) => s + (r.total_beneficiaries || 0), 0);
+  const totalPotential = ((gap || []) as R[]).reduce((s, r) => s + (r.estimated_potential || 0), 0);
+  const totalActual = ((gap || []) as R[]).reduce((s, r) => s + (r.actual_collection || 0), 0);
   const gapPct = totalPotential > 0 ? ((totalPotential - totalActual) / totalPotential) * 100 : 0;
   const lembagaCount = (inst || []).length;
 

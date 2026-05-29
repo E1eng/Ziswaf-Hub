@@ -1,0 +1,241 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Loader2,
+  Package,
+  ArrowRight,
+  CheckCircle,
+  ShieldCheck,
+  Truck,
+  PackageCheck,
+} from "lucide-react";
+import { formatRupiah } from "@/lib/utils/format";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
+
+interface Batch {
+  id: string;
+  batch_code: string;
+  total_amount: number;
+  beneficiary_count: number;
+  fund_type: string;
+  status: string;
+  created_at: string;
+  verified_at: string | null;
+  disbursed_at: string | null;
+  received_at: string | null;
+}
+
+const STATUS_FLOW = ["PROCESSING", "VERIFIED", "DISBURSED", "RECEIVED"] as const;
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  PROCESSING: { label: "Diproses", color: "bg-blue-100 text-blue-800", icon: Package },
+  VERIFIED: { label: "Terverifikasi", color: "bg-amber-100 text-amber-800", icon: ShieldCheck },
+  DISBURSED: { label: "Disalurkan", color: "bg-green-100 text-green-800", icon: Truck },
+  RECEIVED: { label: "Diterima", color: "bg-emerald-100 text-emerald-800", icon: PackageCheck },
+};
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "-";
+  return new Date(dateStr).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getNextStatus(current: string): string | null {
+  const idx = STATUS_FLOW.indexOf(current as typeof STATUS_FLOW[number]);
+  if (idx === -1 || idx >= STATUS_FLOW.length - 1) return null;
+  return STATUS_FLOW[idx + 1];
+}
+
+export default function PenyaluranPage() {
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState<string | null>(null);
+
+  const fetchBatches = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("disbursement_batches")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setBatches((data || []) as Batch[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchBatches();
+  }, [fetchBatches]);
+
+  const handleAdvanceStatus = async (batch: Batch) => {
+    const next = getNextStatus(batch.status);
+    if (!next) return;
+
+    setUpdating(batch.id);
+    const supabase = createClient();
+
+    const now = new Date().toISOString();
+    const updateData = {
+      status: next,
+      ...(next === "VERIFIED" && { verified_at: now }),
+      ...(next === "DISBURSED" && { disbursed_at: now }),
+      ...(next === "RECEIVED" && { received_at: now }),
+    };
+
+    const { error } = await supabase
+      .from("disbursement_batches")
+      .update(updateData)
+      .eq("id", batch.id);
+
+    if (error) {
+      toast.error("Gagal update status", { description: error.message });
+    } else {
+      toast.success(`Status diupdate ke ${STATUS_CONFIG[next].label}`);
+      fetchBatches();
+    }
+    setUpdating(null);
+  };
+
+  const stats = {
+    processing: batches.filter((b) => b.status === "PROCESSING").length,
+    verified: batches.filter((b) => b.status === "VERIFIED").length,
+    disbursed: batches.filter((b) => b.status === "DISBURSED").length,
+    received: batches.filter((b) => b.status === "RECEIVED").length,
+  };
+
+  return (
+    <div className="flex flex-col">
+      <div className="border-b px-8 py-5">
+        <h1 className="text-2xl font-bold">Kelola Penyaluran</h1>
+        <p className="text-muted-foreground text-base mt-1">
+          Update status batch — publik bisa lacak progress di halaman /lacak
+        </p>
+      </div>
+
+      <main className="flex-1 p-8 space-y-6">
+        {/* Status summary */}
+        <div className="grid gap-4 md:grid-cols-4">
+          {STATUS_FLOW.map((s) => {
+            const cfg = STATUS_CONFIG[s];
+            const Icon = cfg.icon;
+            const count = stats[s.toLowerCase() as keyof typeof stats];
+            return (
+              <Card key={s}>
+                <CardContent className="pt-5 flex items-center gap-4">
+                  <div className={`p-3 rounded-xl ${cfg.color}`}>
+                    <Icon className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{count}</p>
+                    <p className="text-sm text-muted-foreground">{cfg.label}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Batch table */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Semua Batch</CardTitle>
+            <CardDescription>Klik tombol untuk memajukan status ke tahap berikutnya</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="size-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : batches.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Package className="size-12 mx-auto mb-3 opacity-30" />
+                <p>Belum ada batch penyaluran</p>
+                <p className="text-sm">Buat alokasi di halaman Alokasi Cerdas terlebih dahulu</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Kode Batch</TableHead>
+                      <TableHead>Jumlah</TableHead>
+                      <TableHead>Penerima</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Dibuat</TableHead>
+                      <TableHead>Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {batches.map((b) => {
+                      const cfg = STATUS_CONFIG[b.status] || STATUS_CONFIG.PROCESSING;
+                      const next = getNextStatus(b.status);
+                      const nextCfg = next ? STATUS_CONFIG[next] : null;
+                      return (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-mono font-bold">{b.batch_code}</TableCell>
+                          <TableCell>{formatRupiah(b.total_amount)}</TableCell>
+                          <TableCell>{b.beneficiary_count} mustahik</TableCell>
+                          <TableCell>
+                            <Badge className={cfg.color}>{cfg.label}</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{formatDate(b.created_at)}</TableCell>
+                          <TableCell>
+                            {next && nextCfg ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5"
+                                disabled={updating === b.id}
+                                onClick={() => handleAdvanceStatus(b)}
+                              >
+                                {updating === b.id ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <ArrowRight className="size-3" />
+                                    {nextCfg.label}
+                                  </>
+                                )}
+                              </Button>
+                            ) : (
+                              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                <CheckCircle className="size-4 text-green-600" />
+                                Selesai
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
