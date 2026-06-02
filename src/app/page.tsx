@@ -14,17 +14,19 @@ import {
 async function getLandingStats() {
   const supabase = await createClient();
 
-  const [{ data: proposals }, { data: batches }] = await Promise.all([
-    supabase.from("mustahik_proposals").select("status, allocated_amount"),
+  const [{ data: institutions }, { data: batches }, { data: pool }] = await Promise.all([
+    supabase.from("institutions").select("id").eq("status", "active"),
     supabase.from("disbursement_batches").select("total_amount, beneficiary_count, status"),
+    supabase.from("fund_pool_view").select("total_donated, total_disbursed"),
   ]);
 
-  const proposalCount = (proposals ?? []).length;
+  const institutionCount = (institutions ?? []).length;
+  const totalDonated = (pool ?? []).reduce((s, p) => s + Number(p.total_donated ?? 0), 0);
   const totalDisbursed = (batches ?? []).reduce((s, b) => s + (b.total_amount ?? 0), 0);
   const totalBeneficiaries = (batches ?? []).reduce((s, b) => s + (b.beneficiary_count ?? 0), 0);
   const batchCount = (batches ?? []).length;
 
-  return { proposalCount, totalDisbursed, totalBeneficiaries, batchCount };
+  return { institutionCount, totalDonated, totalDisbursed, totalBeneficiaries, batchCount };
 }
 
 export default async function LandingPage() {
@@ -42,6 +44,12 @@ export default async function LandingPage() {
             ZISWAF Hub
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-base">
+            <Link href="/lembaga" className="text-muted-foreground hover:text-foreground transition-colors">
+              Direktori Lembaga
+            </Link>
+            <Link href="/program" className="text-muted-foreground hover:text-foreground transition-colors">
+              Program Aktif
+            </Link>
             <Link href="/lacak" className="text-muted-foreground hover:text-foreground transition-colors">
               Lacak Penyaluran
             </Link>
@@ -114,8 +122,8 @@ export default async function LandingPage() {
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-10 max-w-5xl mx-auto text-center">
             <div>
-              <p className="text-3xl md:text-4xl font-bold">{formatNumber(stats.proposalCount)}</p>
-              <p className="text-sm text-muted-foreground mt-2">Proposal Mustahik</p>
+              <p className="text-3xl md:text-4xl font-bold">{formatRupiah(stats.totalDonated)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Total Donasi Masuk</p>
             </div>
             <div>
               <p className="text-3xl md:text-4xl font-bold">{formatRupiah(stats.totalDisbursed)}</p>
@@ -126,8 +134,8 @@ export default async function LandingPage() {
               <p className="text-sm text-muted-foreground mt-2">Penerima Manfaat</p>
             </div>
             <div>
-              <p className="text-3xl md:text-4xl font-bold">{stats.batchCount}</p>
-              <p className="text-sm text-muted-foreground mt-2">Batch Penyaluran</p>
+              <p className="text-3xl md:text-4xl font-bold">{stats.institutionCount}</p>
+              <p className="text-sm text-muted-foreground mt-2">Lembaga Terdaftar</p>
             </div>
           </div>
         </div>
@@ -268,14 +276,17 @@ export default async function LandingPage() {
               Decision support system untuk ekosistem ZISWAF Indonesia.
             </p>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+              <Link href="/lembaga" className="hover:text-foreground">
+                Direktori Lembaga
+              </Link>
+              <Link href="/program" className="hover:text-foreground">
+                Program Aktif
+              </Link>
               <Link href="/lacak" className="hover:text-foreground">
                 Lacak Penyaluran
               </Link>
               <Link href="/login" className="hover:text-foreground">
                 Masuk
-              </Link>
-              <Link href="/register" className="hover:text-foreground">
-                Daftar
               </Link>
             </nav>
           </div>

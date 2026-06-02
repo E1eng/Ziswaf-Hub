@@ -1,362 +1,243 @@
-"use client";
-
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { logAudit } from "@/lib/audit";
+import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { ClipboardList, Plus, Calendar, Target, AlertCircle } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentInstitution } from "@/lib/institution";
+import { formatRupiah } from "@/lib/utils/format";
 import {
-  ASNAF_KEYS,
-  AUDIT_ACTIONS,
-  AUDIT_ENTITY,
+  fundLabel,
   PROGRAM_STATUS,
   PROGRAM_TYPE,
-  ProgramStatus,
-  ProgramType,
-  SECTOR_OPTIONS,
+  ASSISTANCE_TYPE_LABELS,
+  type ProgramStatus,
+  type ProgramType,
+  type AssistanceType,
   asnafLabel,
 } from "@/lib/constants/ziswaf";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { formatRupiah } from "@/lib/utils/format";
-import { toast } from "sonner";
-import {
-  Plus,
-  FolderOpen,
-  CalendarClock,
-  Zap,
-  ChevronRight,
-  Loader2,
-} from "lucide-react";
 
-const TYPE_ICON: Record<ProgramType, typeof CalendarClock> = {
-  RUTIN: CalendarClock,
-  PROPOSAL: FolderOpen,
-  INSIDENTIL: Zap,
-};
-
-interface Program {
+interface ProgramRow {
   id: string;
   name: string;
-  program_type: string;
+  fund_type: string;
+  assistance_type: string;
   target_asnaf: string[];
-  sector: string | null;
   budget: number;
-  period: string | null;
-  beneficiary_target: number;
+  period_start: string;
+  period_end: string;
+  beneficiary_target: number | null;
+  program_type: string;
   status: string;
   created_at: string | null;
 }
 
-export default function ProgramListPage() {
-  const router = useRouter();
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [saving, setSaving] = useState(false);
+interface ProgramWithStats extends ProgramRow {
+  allocated: number;
+  beneficiary_count: number;
+  batch_count: number;
+}
 
-  // Form state
-  const [name, setName] = useState("");
-  const [programType, setProgramType] = useState<ProgramType>("RUTIN");
-  const [selectedAsnaf, setSelectedAsnaf] = useState<string[]>([]);
-  const [sector, setSector] = useState("");
-  const [budget, setBudget] = useState("");
-  const [period, setPeriod] = useState("");
-  const [beneficiaryTarget, setBeneficiaryTarget] = useState("");
-  const [description, setDescription] = useState("");
+async function getPrograms(institutionId: string): Promise<ProgramWithStats[]> {
+  const supabase = await createClient();
 
-  const fetchPrograms = useCallback(async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("programs")
-      .select("id, name, program_type, target_asnaf, sector, budget, period, beneficiary_target, status, created_at")
-      .order("created_at", { ascending: false });
-    setPrograms((data || []) as Program[]);
-    setLoading(false);
-  }, []);
+  const { data: programs } = await supabase
+    .from("programs")
+    .select("id, name, fund_type, assistance_type, target_asnaf, budget, period_start, period_end, beneficiary_target, program_type, status, created_at")
+    .eq("institution_id", institutionId)
+    .order("created_at", { ascending: false });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional data fetch on mount
-    fetchPrograms();
-  }, [fetchPrograms]);
+  if (!programs || programs.length === 0) return [];
 
-  const toggleAsnaf = (a: string) => {
-    setSelectedAsnaf((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
-  };
+  const programIds = programs.map((p) => p.id);
 
-  const handleCreate = async () => {
-    if (!name.trim()) {
-      toast.error("Nama program wajib diisi");
-      return;
-    }
-    if (selectedAsnaf.length === 0) {
-      toast.error("Pilih minimal 1 kategori asnaf");
-      return;
-    }
+  // Fetch batch stats per program
+  const { data: batches } = await supabase
+    .from("disbursement_batches")
+    .select("program_id, total_amount, beneficiary_count")
+    .in("program_id", programIds);
 
-    setSaving(true);
-    const supabase = createClient();
+  const statsMap = new Map<string, { allocated: number; beneficiary: number; count: number }>();
+  for (const b of batches ?? []) {
+    if (!b.program_id) continue;
+    const cur = statsMap.get(b.program_id) ?? { allocated: 0, beneficiary: 0, count: 0 };
+    cur.allocated += Number(b.total_amount ?? 0);
+    cur.beneficiary += b.beneficiary_count ?? 0;
+    cur.count += 1;
+    statsMap.set(b.program_id, cur);
+  }
 
-    const { data: inst } = await supabase
-      .from("institutions")
-      .select("id")
-      .eq("status", "active")
-      .limit(1)
-      .single();
+  return programs.map((p) => {
+    const stats = statsMap.get(p.id) ?? { allocated: 0, beneficiary: 0, count: 0 };
+    return {
+      ...(p as ProgramRow),
+      allocated: stats.allocated,
+      beneficiary_count: stats.beneficiary,
+      batch_count: stats.count,
+    };
+  });
+}
 
-    const { data: created, error } = await supabase
-      .from("programs")
-      .insert({
-        institution_id: inst?.id ?? null,
-        name: name.trim(),
-        program_type: programType,
-        target_asnaf: selectedAsnaf,
-        sector: sector || null,
-        budget: parseFloat(budget) || 0,
-        period: period || null,
-        beneficiary_target: parseInt(beneficiaryTarget) || 0,
-        description: description || null,
-        status: "ACTIVE",
-      })
-      .select("id")
-      .single();
+function formatDateRange(start: string, end: string): string {
+  const fmt = (s: string) => new Date(s).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
 
-    if (error) {
-      toast.error("Gagal membuat program", { description: error.message });
-    } else {
-      toast.success("Program berhasil dibuat");
-      await logAudit(supabase, {
-        action: AUDIT_ACTIONS.PROGRAM_CREATED,
-        entityType: AUDIT_ENTITY.PROGRAM,
-        entityId: created?.id,
-        payload: { name: name.trim(), program_type: programType, target_asnaf: selectedAsnaf },
-      });
-      setShowCreate(false);
-      setName("");
-      setProgramType("RUTIN");
-      setSelectedAsnaf([]);
-      setSector("");
-      setBudget("");
-      setPeriod("");
-      setBeneficiaryTarget("");
-      setDescription("");
-      fetchPrograms();
-    }
-    setSaving(false);
-  };
+export default async function ProgramListPage() {
+  const ctx = await getCurrentInstitution();
 
+  if (!ctx) {
+    return (
+      <div className="flex flex-col">
+        <PageHeader title="Program Penyaluran" description="Kelola program multi-fund + alokasi" />
+        <main className="flex-1 p-8">
+          <Card className="max-w-lg border-amber-200">
+            <CardContent className="pt-6 flex items-start gap-3">
+              <AlertCircle className="size-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="font-semibold">Akun belum terhubung ke lembaga</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Hubungi admin untuk meng-assign akun Anda ke salah satu lembaga.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  const programs = await getPrograms(ctx.institutionId);
   const active = programs.filter((p) => p.status === "ACTIVE").length;
-  const totalBudget = programs.reduce((s, p) => s + (p.budget || 0), 0);
+  const draft = programs.filter((p) => p.status === "DRAFT").length;
+  const completed = programs.filter((p) => p.status === "COMPLETED").length;
+  const totalBudget = programs.reduce((s, p) => s + Number(p.budget ?? 0), 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Program Penyaluran</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Kelola program rutin, proposal, dan insidentil
-          </p>
+    <div className="flex flex-col">
+      <PageHeader
+        title="Program Penyaluran"
+        description={`Kelola program multi-fund — ${ctx.institutionName}`}
+      >
+        <Link href="/dashboard/program/baru" className={buttonVariants()}>
+          <Plus className="size-4 mr-2" />
+          Buat Program
+        </Link>
+      </PageHeader>
+
+      <main className="flex-1 p-6 lg:p-8 space-y-6">
+        {/* Stats */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card><CardContent className="pt-5">
+            <p className="text-sm text-muted-foreground">Total Program</p>
+            <p className="text-2xl font-bold mt-1">{programs.length}</p>
+          </CardContent></Card>
+          <Card><CardContent className="pt-5">
+            <p className="text-sm text-muted-foreground">Aktif</p>
+            <p className="text-2xl font-bold mt-1 text-emerald-600">{active}</p>
+          </CardContent></Card>
+          <Card><CardContent className="pt-5">
+            <p className="text-sm text-muted-foreground">Draft</p>
+            <p className="text-2xl font-bold mt-1 text-muted-foreground">{draft}</p>
+          </CardContent></Card>
+          <Card><CardContent className="pt-5">
+            <p className="text-sm text-muted-foreground">Selesai</p>
+            <p className="text-2xl font-bold mt-1">{completed}</p>
+          </CardContent></Card>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)}>
-          <Plus className="size-4 mr-2" /> Buat Program
-        </Button>
-      </div>
 
-      {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold">{programs.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">Total Program</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold">{active}</p>
-            <p className="text-xs text-muted-foreground mt-1">Program Aktif</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold">{formatRupiah(totalBudget)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Total Anggaran</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Create form */}
-      {showCreate && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Buat Program Baru</CardTitle>
+            <CardTitle className="text-lg">Anggaran Program</CardTitle>
+            <CardDescription>Total budget semua program di {ctx.institutionName}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium mb-1 block">Nama Program *</label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Beasiswa Pendidikan Semester 1 2026"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Tipe Program</label>
-                <div className="flex gap-2">
-                  {(Object.keys(PROGRAM_TYPE) as ProgramType[]).map((t) => (
-                    <Button
-                      key={t}
-                      size="sm"
-                      variant={programType === t ? "default" : "outline"}
-                      onClick={() => setProgramType(t)}
-                    >
-                      {PROGRAM_TYPE[t].label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-1 block">
-                Target Asnaf * (pilih satu atau lebih)
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {ASNAF_KEYS.map((a) => (
-                  <Button
-                    key={a}
-                    size="sm"
-                    variant={selectedAsnaf.includes(a) ? "default" : "outline"}
-                    onClick={() => toggleAsnaf(a)}
-                  >
-                    {asnafLabel(a)}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-4">
-              <div>
-                <label className="text-sm font-medium mb-1 block">Sektor</label>
-                <select
-                  className="w-full rounded-md border px-3 py-2 text-sm bg-background"
-                  value={sector}
-                  onChange={(e) => setSector(e.target.value)}
-                >
-                  <option value="">Pilih sektor</option>
-                  {SECTOR_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Anggaran (Rp)</label>
-                <Input
-                  type="number"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  placeholder="500000000"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Periode</label>
-                <Input
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  placeholder="2026-S1"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Target Penerima</label>
-                <Input
-                  type="number"
-                  value={beneficiaryTarget}
-                  onChange={(e) => setBeneficiaryTarget(e.target.value)}
-                  placeholder="100"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-1 block">Deskripsi</label>
-              <textarea
-                className="w-full rounded-md border px-3 py-2 text-sm bg-background min-h-[60px]"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Deskripsi singkat program..."
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button onClick={handleCreate} disabled={saving}>
-                {saving && <Loader2 className="size-4 mr-2 animate-spin" />}
-                Simpan
-              </Button>
-              <Button variant="outline" onClick={() => setShowCreate(false)}>
-                Batal
-              </Button>
-            </div>
+          <CardContent>
+            <p className="text-3xl font-bold">{formatRupiah(totalBudget)}</p>
           </CardContent>
         </Card>
-      )}
 
-      {/* Program list */}
-      {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Memuat...</div>
-      ) : programs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <FolderOpen className="size-12 mx-auto text-muted-foreground/40 mb-4" />
-            <h3 className="text-lg font-semibold">Belum ada program</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Buat program pertama untuk mulai menyalurkan dana ZISWAF
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {programs.map((p) => {
-            const cfgType = PROGRAM_TYPE[p.program_type as ProgramType] ?? PROGRAM_TYPE.RUTIN;
-            const cfgStatus = PROGRAM_STATUS[p.status as ProgramStatus] ?? PROGRAM_STATUS.DRAFT;
-            const TypeIcon = TYPE_ICON[p.program_type as ProgramType] ?? CalendarClock;
-            return (
-              <Card
-                key={p.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push(`/dashboard/program/${p.id}`)}
-              >
-                <CardContent className="py-4">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg text-white ${cfgType.color}`}>
-                      <TypeIcon className="size-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold truncate">{p.name}</h3>
-                        <Badge variant={cfgStatus.variant}>{cfgStatus.label}</Badge>
+        {/* List */}
+        {programs.length === 0 ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <ClipboardList className="size-12 mx-auto text-muted-foreground/40 mb-4" />
+              <h3 className="text-lg font-semibold">Belum ada program</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                Buat program pertama untuk mulai mengalokasikan dana ke mustahik dengan greedy knapsack.
+              </p>
+              <Link href="/dashboard/program/baru" className={buttonVariants({ className: "mt-4" })}>
+                <Plus className="size-4 mr-2" />
+                Buat Program Pertama
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {programs.map((p) => {
+              const cfgType = PROGRAM_TYPE[p.program_type as ProgramType] ?? PROGRAM_TYPE.RUTIN;
+              const cfgStatus = PROGRAM_STATUS[p.status as ProgramStatus] ?? PROGRAM_STATUS.DRAFT;
+              const allocPct = p.budget > 0 ? (p.allocated / p.budget) * 100 : 0;
+              return (
+                <Link key={p.id} href={`/dashboard/program/${p.id}`} className="block">
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                    <CardContent className="py-5">
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3 rounded-xl text-white ${cfgType.color} shrink-0`}>
+                          <ClipboardList className="size-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-base truncate">{p.name}</h3>
+                            <Badge variant={cfgStatus.variant}>{cfgStatus.label}</Badge>
+                            <Badge variant="outline" className="text-xs">{fundLabel(p.fund_type)}</Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {ASSISTANCE_TYPE_LABELS[p.assistance_type as AssistanceType] ?? p.assistance_type}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="size-3.5" />
+                              {formatDateRange(p.period_start, p.period_end)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Target className="size-3.5" />
+                              {p.target_asnaf.map(asnafLabel).join(", ")}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-3 gap-3 max-w-2xl">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Anggaran</p>
+                              <p className="font-semibold">{formatRupiah(p.budget)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Teralokasi</p>
+                              <p className="font-semibold text-emerald-600">{formatRupiah(p.allocated)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Penerima</p>
+                              <p className="font-semibold">
+                                {p.beneficiary_count}
+                                {p.beneficiary_target ? `/${p.beneficiary_target}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-3 max-w-2xl">
+                            <div
+                              className="h-full bg-emerald-500 transition-all"
+                              style={{ width: `${Math.min(100, allocPct)}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                        <span>{cfgType.label}</span>
-                        {p.sector && <span className="capitalize">{p.sector}</span>}
-                        <span>Asnaf: {p.target_asnaf.map(asnafLabel).join(", ")}</span>
-                        {p.period && <span>{p.period}</span>}
-                      </div>
-                    </div>
-                    <div className="text-right hidden sm:block">
-                      <p className="font-semibold">{formatRupiah(p.budget)}</p>
-                      <p className="text-xs text-muted-foreground">Target: {p.beneficiary_target} orang</p>
-                    </div>
-                    <ChevronRight className="size-5 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

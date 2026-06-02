@@ -34,9 +34,11 @@ import {
   BATCH_STATUS,
   BATCH_STATUS_FLOW,
   BatchStatus,
+  fundLabel,
   nextBatchStatus,
 } from "@/lib/constants/ziswaf";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
 
 interface Batch {
   id: string;
@@ -45,10 +47,12 @@ interface Batch {
   beneficiary_count: number;
   fund_type: string;
   status: string;
-  created_at: string;
+  created_at: string | null;
   verified_at: string | null;
   disbursed_at: string | null;
   received_at: string | null;
+  institution_id: string | null;
+  program_id: string | null;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -71,14 +75,14 @@ export default function PenyaluranPage() {
     const supabase = createClient();
     const { data } = await supabase
       .from("disbursement_batches")
-      .select("*")
+      .select("id, batch_code, total_amount, beneficiary_count, fund_type, status, created_at, verified_at, disbursed_at, received_at, institution_id, program_id")
       .order("created_at", { ascending: false });
-    setBatches((data || []) as Batch[]);
+    setBatches((data ?? []) as Batch[]);
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional data fetch on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch on mount
     fetchBatches();
   }, [fetchBatches]);
 
@@ -106,8 +110,9 @@ export default function PenyaluranPage() {
       toast.success(`Status diupdate ke ${BATCH_STATUS[next].label}`);
       await logAudit(supabase, {
         action: AUDIT_ACTIONS.BATCH_STATUS_UPDATED,
-        entityType: AUDIT_ENTITY.DISBURSEMENT_BATCH,
+        entityType: AUDIT_ENTITY.BATCH,
         entityId: batch.id,
+        institutionId: batch.institution_id ?? undefined,
         payload: { from: batch.status, to: next },
       });
       fetchBatches();
@@ -124,14 +129,12 @@ export default function PenyaluranPage() {
 
   return (
     <div className="flex flex-col">
-      <div className="border-b px-8 py-5">
-        <h1 className="text-2xl font-bold">Kelola Penyaluran</h1>
-        <p className="text-muted-foreground text-base mt-1">
-          Update status batch — publik bisa lacak progress di halaman /lacak
-        </p>
-      </div>
+      <PageHeader
+        title="Kelola Penyaluran"
+        description="Update status batch — publik bisa lacak progress di /lacak"
+      />
 
-      <main className="flex-1 p-8 space-y-6">
+      <main className="flex-1 p-6 lg:p-8 space-y-6">
         {/* Status summary */}
         <div className="grid gap-4 md:grid-cols-4">
           {BATCH_STATUS_FLOW.map((s) => {
@@ -168,7 +171,7 @@ export default function PenyaluranPage() {
               <div className="text-center py-12 text-muted-foreground">
                 <Package className="size-12 mx-auto mb-3 opacity-30" />
                 <p>Belum ada batch penyaluran</p>
-                <p className="text-sm">Buat alokasi di halaman Alokasi Cerdas terlebih dahulu</p>
+                <p className="text-sm">Buat batch via halaman Alokasi Cerdas atau Detail Program</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -176,6 +179,7 @@ export default function PenyaluranPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Kode Batch</TableHead>
+                      <TableHead>Jenis Dana</TableHead>
                       <TableHead>Jumlah</TableHead>
                       <TableHead>Penerima</TableHead>
                       <TableHead>Status</TableHead>
@@ -191,6 +195,9 @@ export default function PenyaluranPage() {
                       return (
                         <TableRow key={b.id}>
                           <TableCell className="font-mono font-bold">{b.batch_code}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{fundLabel(b.fund_type)}</Badge>
+                          </TableCell>
                           <TableCell>{formatRupiah(b.total_amount)}</TableCell>
                           <TableCell>{b.beneficiary_count} mustahik</TableCell>
                           <TableCell>

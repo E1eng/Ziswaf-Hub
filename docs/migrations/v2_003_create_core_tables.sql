@@ -1,126 +1,8 @@
 -- ============================================================================
--- ZISWAF Hub — Database Schema v2 (Canonical)
--- ============================================================================
--- Sesuai ADR 0002 (coordination layer architecture).
--- File ini adalah konkatenasi dari migration files di docs/migrations/v2_*.sql.
---
--- Untuk setup project baru:
---   Apply isi file ini di Supabase SQL Editor.
---
--- Untuk migrate existing project:
---   Jalankan v2_001..v2_005 berurutan via Supabase MCP atau psql.
+-- v2 / 003 — Core tables baru sesuai ADR 0002
 -- ============================================================================
 
--- Pastikan extensions tersedia
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- ============================================================================
--- SECTION 1 — Drop legacy (skip kalau fresh install)
--- ============================================================================
-
-DROP MATERIALIZED VIEW IF EXISTS mv_collection_by_region_year CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS mv_distribution_by_region_year CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS mv_collection_monthly_trend CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS mv_gap_analysis CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS mv_wakaf_summary_by_province CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS mv_institution_performance CASCADE;
-DROP MATERIALIZED VIEW IF EXISTS mv_kecamatan_ranking CASCADE;
-
-DROP TABLE IF EXISTS collections CASCADE;
-DROP TABLE IF EXISTS distributions CASCADE;
-DROP TABLE IF EXISTS bps_indicators CASCADE;
-DROP TABLE IF EXISTS zakat_potential CASCADE;
-DROP TABLE IF EXISTS kecamatan_indicators CASCADE;
-DROP TABLE IF EXISTS wakaf_assets CASCADE;
-DROP TABLE IF EXISTS wakaf_asset_types CASCADE;
-DROP TABLE IF EXISTS wakaf_utilization_types CASCADE;
-
-DROP TABLE IF EXISTS mustahik_proposals CASCADE;
-DROP TABLE IF EXISTS program_beneficiaries CASCADE;
-DROP TABLE IF EXISTS audit_ledger CASCADE;
-
-DROP FUNCTION IF EXISTS calculate_priority_score(uuid) CASCADE;
-DROP FUNCTION IF EXISTS trigger_calculate_priority() CASCADE;
-DROP FUNCTION IF EXISTS refresh_all_materialized_views() CASCADE;
-DROP FUNCTION IF EXISTS process_disbursement(uuid, numeric, text, text, text) CASCADE;
-
--- ============================================================================
--- SECTION 2 — Alter existing tables
--- ============================================================================
-
-ALTER TABLE institutions
-    ADD COLUMN IF NOT EXISTS bank_account_name TEXT,
-    ADD COLUMN IF NOT EXISTS bank_account_number TEXT,
-    ADD COLUMN IF NOT EXISTS bank_name TEXT;
-
-DROP TABLE IF EXISTS programs CASCADE;
-
-CREATE TABLE programs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    institution_id UUID NOT NULL REFERENCES institutions(id),
-    name TEXT NOT NULL,
-    description TEXT,
-    fund_type TEXT NOT NULL CHECK (fund_type IN ('zakat', 'infaq', 'sedekah', 'wakaf', 'dskl')),
-    assistance_type TEXT NOT NULL CHECK (assistance_type IN (
-        'sembako', 'beasiswa', 'modal_usaha', 'kesehatan',
-        'tunai', 'pelatihan', 'dakwah', 'rumah_layak',
-        'kemanusiaan', 'lainnya'
-    )),
-    target_asnaf TEXT[] NOT NULL DEFAULT '{}',
-    sector TEXT,
-    budget NUMERIC(20,2) NOT NULL DEFAULT 0,
-    period_start DATE NOT NULL,
-    period_end DATE NOT NULL,
-    beneficiary_target INT DEFAULT 0,
-    program_type TEXT NOT NULL DEFAULT 'RUTIN'
-        CHECK (program_type IN ('RUTIN', 'PROPOSAL', 'INSIDENTIL')),
-    status TEXT NOT NULL DEFAULT 'DRAFT'
-        CHECK (status IN ('DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELED')),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT chk_fiqih_target_asnaf CHECK (
-        CASE fund_type
-            WHEN 'zakat' THEN target_asnaf <@ ARRAY[
-                'fakir','miskin','amil','mualaf','riqab',
-                'gharimin','fisabilillah','ibnu_sabil'
-            ]::text[]
-            WHEN 'dskl' THEN target_asnaf <@ ARRAY[
-                'fakir','miskin','amil','mualaf','riqab',
-                'gharimin','fisabilillah','ibnu_sabil'
-            ]::text[]
-            WHEN 'wakaf' THEN false
-            ELSE true
-        END
-    ),
-    CONSTRAINT chk_period_valid CHECK (period_end >= period_start)
-);
-
-CREATE INDEX idx_programs_institution_status ON programs(institution_id, status);
-CREATE INDEX idx_programs_fund_type ON programs(fund_type) WHERE status = 'ACTIVE';
-CREATE INDEX idx_programs_period ON programs(period_start, period_end) WHERE status = 'ACTIVE';
-
-ALTER TABLE disbursement_batches
-    ADD COLUMN IF NOT EXISTS institution_id UUID REFERENCES institutions(id);
-
-ALTER TABLE disbursement_batches
-    DROP CONSTRAINT IF EXISTS disbursement_batches_program_id_fkey,
-    ADD CONSTRAINT disbursement_batches_program_id_fkey
-        FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL;
-
-ALTER TABLE disbursement_batches
-    ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS disbursed_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ,
-    ADD COLUMN IF NOT EXISTS notes TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_batches_status ON disbursement_batches(status);
-CREATE INDEX IF NOT EXISTS idx_batches_institution ON disbursement_batches(institution_id, status);
-
--- ============================================================================
--- SECTION 3 — Core tables (sesuai ADR 0002)
--- ============================================================================
-
+-- 3.1 institution_users — mapping auth.users ke institution + role
 CREATE TABLE institution_users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
@@ -128,47 +10,66 @@ CREATE TABLE institution_users (
     role TEXT NOT NULL CHECK (role IN ('admin', 'supervisor', 'reviewer')),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Satu user = satu lembaga (untuk fase awal, multi-tenancy nanti)
 CREATE UNIQUE INDEX idx_institution_users_user ON institution_users(user_id);
 CREATE INDEX idx_institution_users_inst ON institution_users(institution_id, role);
 
+-- 3.2 field_workers — identity field worker (Telegram-based)
 CREATE TABLE field_workers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     full_name TEXT NOT NULL,
     phone TEXT,
+
+    -- Telegram binding
     telegram_chat_id BIGINT,
     telegram_username TEXT,
+
+    -- Onboarding
     invite_code TEXT,
     invite_expires_at TIMESTAMPTZ,
     invited_by UUID REFERENCES auth.users(id),
+
     status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'active', 'revoked')),
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     activated_at TIMESTAMPTZ,
     last_active_at TIMESTAMPTZ
 );
+-- Active field workers must have unique telegram_chat_id
 CREATE UNIQUE INDEX idx_fw_telegram_active
     ON field_workers(telegram_chat_id)
     WHERE status = 'active' AND telegram_chat_id IS NOT NULL;
+-- Pending invites must have unique invite_code
 CREATE UNIQUE INDEX idx_fw_invite_pending
     ON field_workers(invite_code)
     WHERE status = 'pending' AND invite_code IS NOT NULL;
 CREATE INDEX idx_fw_institution ON field_workers(institution_id, status);
 
+-- 3.3 mustahik_registry — shared identity per NIK
 CREATE TABLE mustahik_registry (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nik VARCHAR(16) NOT NULL UNIQUE CHECK (nik ~ '^\d{16}$'),
     full_name TEXT NOT NULL,
     kecamatan_id UUID REFERENCES regions(id),
+
+    -- Contact (opsional)
     phone TEXT,
     address TEXT,
+
+    -- Lifecycle
     lifecycle_status TEXT NOT NULL DEFAULT 'active'
         CHECK (lifecycle_status IN ('active', 'graduated', 'deceased', 'moved', 'flagged_invalid')),
     lifecycle_changed_at TIMESTAMPTZ,
     lifecycle_changed_by UUID REFERENCES auth.users(id),
     lifecycle_reason TEXT,
+
+    -- UU PDP consent
     pdp_consent_at TIMESTAMPTZ,
     pdp_consent_collected_by_institution_id UUID REFERENCES institutions(id),
+
+    -- Audit
     first_registered_by_institution_id UUID REFERENCES institutions(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -176,31 +77,43 @@ CREATE TABLE mustahik_registry (
 CREATE INDEX idx_mustahik_lifecycle ON mustahik_registry(lifecycle_status);
 CREATE INDEX idx_mustahik_kecamatan ON mustahik_registry(kecamatan_id);
 
+-- 3.4 mustahik_assessments — per-lembaga assessment & priority score
 CREATE TABLE mustahik_assessments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     mustahik_id UUID NOT NULL REFERENCES mustahik_registry(id) ON DELETE CASCADE,
     institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+
+    -- Classification & metrics
     asnaf_category TEXT NOT NULL CHECK (asnaf_category IN (
         'fakir','miskin','amil','mualaf','riqab',
         'gharimin','fisabilillah','ibnu_sabil'
     )),
     metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- expected metrics shape: { monthly_income, dependents, housing, ... }
     priority_score NUMERIC(6,2) NOT NULL DEFAULT 0,
     estimated_amount NUMERIC(20,2) NOT NULL DEFAULT 0,
+
+    -- Workflow
     status TEXT NOT NULL DEFAULT 'PENDING'
         CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'ARCHIVED')),
     source TEXT NOT NULL DEFAULT 'MANUAL'
         CHECK (source IN ('MANUAL', 'TELEGRAM', 'API', 'IMPORT')),
     field_worker_id UUID REFERENCES field_workers(id),
+
+    -- Review
     reviewed_by UUID REFERENCES auth.users(id),
     reviewed_at TIMESTAMPTZ,
     review_note TEXT,
+
+    -- Field verification (kunjungan rumah)
     field_verified_at TIMESTAMPTZ,
     field_verified_by UUID REFERENCES field_workers(id),
+
     submitted_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Satu mustahik bisa di-assess multi-lembaga, tapi satu lembaga hanya satu assessment aktif
 CREATE UNIQUE INDEX idx_assessments_unique_active
     ON mustahik_assessments(mustahik_id, institution_id)
     WHERE status IN ('PENDING', 'APPROVED');
@@ -209,25 +122,32 @@ CREATE INDEX idx_assessments_status_score
 CREATE INDEX idx_assessments_institution
     ON mustahik_assessments(institution_id, status);
 
+-- 3.5 allocations — output wizard alokasi (link assessment → batch)
 CREATE TABLE allocations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     program_id UUID NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
     assessment_id UUID NOT NULL REFERENCES mustahik_assessments(id),
     batch_id UUID REFERENCES disbursement_batches(id) ON DELETE SET NULL,
+
     amount NUMERIC(20,2) NOT NULL CHECK (amount >= 0),
     status TEXT NOT NULL DEFAULT 'PLANNED'
         CHECK (status IN ('PLANNED', 'ALLOCATED', 'CANCELED')),
+
+    -- Dedup override (full transparency)
     duplicate_override BOOLEAN NOT NULL DEFAULT FALSE,
     duplicate_reason TEXT,
     duplicate_overridden_by UUID REFERENCES auth.users(id),
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     allocated_at TIMESTAMPTZ
 );
+-- Satu assessment hanya boleh punya satu allocation aktif per program
 CREATE UNIQUE INDEX idx_allocations_unique
     ON allocations(program_id, assessment_id)
     WHERE status IN ('PLANNED', 'ALLOCATED');
 CREATE INDEX idx_allocations_batch ON allocations(batch_id);
 
+-- 3.6 assistance_log — append-only source-of-truth dedup
 CREATE TABLE assistance_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     mustahik_id UUID NOT NULL REFERENCES mustahik_registry(id),
@@ -235,12 +155,17 @@ CREATE TABLE assistance_log (
     program_id UUID REFERENCES programs(id) ON DELETE SET NULL,
     allocation_id UUID REFERENCES allocations(id) ON DELETE SET NULL,
     batch_id UUID NOT NULL REFERENCES disbursement_batches(id),
+
     assistance_type TEXT NOT NULL,
     fund_type TEXT NOT NULL CHECK (fund_type IN ('zakat','infaq','sedekah','wakaf','dskl')),
     amount NUMERIC(20,2) NOT NULL,
+
+    -- Period overlap untuk dedup
     period_start DATE NOT NULL,
     period_end DATE NOT NULL,
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
+
     CONSTRAINT chk_period_log_valid CHECK (period_end >= period_start)
 );
 CREATE INDEX idx_assistance_lookup
@@ -249,28 +174,38 @@ CREATE INDEX idx_assistance_institution
     ON assistance_log(institution_id, created_at DESC);
 CREATE INDEX idx_assistance_batch ON assistance_log(batch_id);
 
+-- 3.7 donations — donor receipt + auto-email kode lacak (pool model)
 CREATE TABLE donations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     donation_code TEXT NOT NULL UNIQUE,
     institution_id UUID NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+
+    -- Donor
     donor_name TEXT,
     donor_email TEXT,
     donor_phone TEXT,
     is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Amount & classification
     amount NUMERIC(20,2) NOT NULL CHECK (amount > 0),
     fund_type TEXT NOT NULL CHECK (fund_type IN ('zakat','infaq','sedekah','wakaf','dskl')),
     channel TEXT CHECK (channel IN ('transfer', 'cash', 'ewallet', 'payroll', 'lainnya')),
+
+    -- Receipt status
     received_at TIMESTAMPTZ DEFAULT NOW(),
     email_sent_at TIMESTAMPTZ,
     email_error TEXT,
+
     notes TEXT,
     recorded_by UUID REFERENCES auth.users(id),
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_donations_pool ON donations(institution_id, fund_type);
 CREATE INDEX idx_donations_recent ON donations(institution_id, received_at DESC);
 
+-- 3.8 audit_ledger — immutable event log (event-log style, beda dari schema lama)
 CREATE TABLE audit_ledger (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     action TEXT NOT NULL,
@@ -285,17 +220,3 @@ CREATE INDEX idx_audit_entity ON audit_ledger(entity_type, entity_id, created_at
 CREATE INDEX idx_audit_action ON audit_ledger(action, created_at DESC);
 CREATE INDEX idx_audit_actor ON audit_ledger(actor_id, created_at DESC);
 CREATE INDEX idx_audit_institution ON audit_ledger(institution_id, created_at DESC);
-
--- ============================================================================
--- SECTION 4 — Functions, triggers, helpers
--- (lihat docs/migrations/v2_004_functions_triggers.sql untuk detail)
--- ============================================================================
-
--- Lihat docs/migrations/v2_004_functions_triggers.sql
-
--- ============================================================================
--- SECTION 5 — Row Level Security
--- (lihat docs/migrations/v2_005_rls.sql untuk detail)
--- ============================================================================
-
--- Lihat docs/migrations/v2_005_rls.sql

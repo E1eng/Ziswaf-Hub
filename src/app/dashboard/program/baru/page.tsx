@@ -1,15 +1,17 @@
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { getCurrentInstitution } from "@/lib/institution";
-import { ProposalDashboard } from "./proposal-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
+import { getCurrentInstitution } from "@/lib/institution";
+import { ProgramForm } from "./program-form";
 
-export default async function ProposalPage() {
+export default async function NewProgramPage() {
   const ctx = await getCurrentInstitution();
+
   if (!ctx) {
     return (
       <div className="flex flex-col">
-        <PageHeader title="Registry & Assessment" description="Kelola assessment mustahik" />
+        <PageHeader title="Buat Program Baru" description="Setup program multi-fund untuk alokasi" />
         <main className="flex-1 p-8">
           <Card className="max-w-lg border-amber-200">
             <CardContent className="pt-6 flex items-start gap-3">
@@ -22,14 +24,19 @@ export default async function ProposalPage() {
     );
   }
 
+  // Hanya admin/supervisor boleh buat program
+  if (ctx.role === "reviewer") {
+    redirect("/dashboard/program");
+  }
+
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Registry & Assessment Mustahik"
-        description={`Kelola assessment mustahik di ${ctx.institutionName}`}
+        title="Buat Program Baru"
+        description={`Setup program untuk ${ctx.institutionName}`}
       />
-      <main className="flex-1 p-6 lg:p-8">
-        <ProposalDashboard institutionId={ctx.institutionId} institutionName={ctx.institutionName} />
+      <main className="flex-1 p-6 lg:p-8 max-w-3xl">
+        <ProgramForm institutionId={ctx.institutionId} />
       </main>
     </div>
   );

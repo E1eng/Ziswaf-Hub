@@ -9,6 +9,8 @@ import {
   FileText,
   Truck,
   ClipboardList,
+  HandCoins,
+  Users,
 } from "lucide-react";
 
 import {
@@ -33,10 +35,17 @@ const navItems = [
     label: "Utama",
     items: [
       { title: "Beranda", href: "/dashboard", icon: LayoutDashboard },
-      { title: "E-Proposal", href: "/dashboard/proposal", icon: FileText },
+      { title: "Donasi Masuk", href: "/dashboard/donasi", icon: HandCoins },
       { title: "Program", href: "/dashboard/program", icon: ClipboardList },
       { title: "Alokasi Cerdas", href: "/dashboard/alokasi", icon: Calculator },
-      { title: "Kelola Penyaluran", href: "/dashboard/penyaluran", icon: Truck },
+      { title: "Penyaluran", href: "/dashboard/penyaluran", icon: Truck },
+    ],
+  },
+  {
+    label: "Mustahik",
+    items: [
+      { title: "Registry & Assessment", href: "/dashboard/proposal", icon: FileText },
+      { title: "Field Worker", href: "/dashboard/field-worker", icon: Users },
     ],
   },
   {

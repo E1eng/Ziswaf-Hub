@@ -3,31 +3,48 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
 /**
- * Telegram webhook — terima submission proposal dari bot lapangan.
+ * Telegram webhook — submit assessment dari field worker via bot @ziswafhub_bot.
  *
- * Skor prioritas dihitung otomatis di DB lewat trigger `trg_proposal_priority`
- * → kita tidak duplikasi logic di sini.
+ * Flow:
+ *   1. Identify field_worker via telegram_chat_id (sudah di-onboard via /start <invite>)
+ *   2. Resolve institution_id dari field_worker
+ *   3. Find or create mustahik_registry by NIK
+ *   4. Create mustahik_assessments (status=PENDING, source=TELEGRAM)
+ *   5. priority_score auto-dihitung oleh trigger DB
+ *   6. Write audit_ledger
  *
- * Estimasi nominal alokasi awal di-set lewat baseline per asnaf.
- * Reviewer di dashboard yang akan melakukan adjustment final.
+ * Schema body:
+ *   {
+ *     telegram_chat_id: number,        // identitas field worker
+ *     nik: string,                     // 16 digit
+ *     full_name: string,
+ *     asnaf_category: 'fakir'|...,
+ *     metrics: { monthly_income, dependents, housing },
+ *     kecamatan_id?: string            // opsional
+ *   }
+ *
+ * Endpoint ini pakai SERVICE_ROLE supaya bisa bypass RLS — auth-nya berdasarkan
+ * telegram_chat_id yang sudah terdaftar di tabel `field_workers`.
  */
 
-const supabase = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  // Don't crash module load; return error at request time instead
+  console.warn("[telegram-webhook] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing");
+}
 
 interface TelegramPayload {
-  nik: string;
-  full_name: string;
+  telegram_chat_id?: number;
+  nik?: string;
+  full_name?: string;
   kecamatan_id?: string;
-  asnaf_category: string;
-  metrics: {
+  asnaf_category?: string;
+  metrics?: {
     monthly_income?: number;
     dependents?: number;
     housing?: string;
-    disability?: boolean;
-    employment_status?: string;
   };
 }
 
@@ -36,11 +53,7 @@ const VALID_ASNAF = new Set([
   "riqab", "gharimin", "fisabilillah", "ibnu_sabil",
 ]);
 
-/**
- * Estimasi awal alokasi per asnaf — hanya sebagai default,
- * reviewer tetap bisa override di dashboard.
- */
-function estimateAllocation(asnaf: string, dependents: number): number {
+function estimateAmount(asnaf: string, dependents: number): number {
   const baseAmounts: Record<string, number> = {
     fakir: 2_500_000,
     miskin: 2_000_000,
@@ -57,6 +70,13 @@ function estimateAllocation(asnaf: string, dependents: number): number {
 }
 
 export async function POST(request: NextRequest) {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    return NextResponse.json(
+      { error: "Server configuration incomplete" },
+      { status: 500 }
+    );
+  }
+
   let body: TelegramPayload;
   try {
     body = (await request.json()) as TelegramPayload;
@@ -64,20 +84,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Required fields
-  if (!body.nik || !body.full_name || !body.asnaf_category) {
+  // Validate required fields
+  if (!body.telegram_chat_id || !body.nik || !body.full_name || !body.asnaf_category) {
     return NextResponse.json(
-      { error: "Missing required fields: nik, full_name, asnaf_category" },
+      { error: "Missing required fields: telegram_chat_id, nik, full_name, asnaf_category" },
       { status: 400 }
     );
   }
-
-  // NIK 16 digits
   if (!/^\d{16}$/.test(body.nik)) {
     return NextResponse.json({ error: "NIK must be exactly 16 digits" }, { status: 400 });
   }
-
-  // Asnaf validation
   if (!VALID_ASNAF.has(body.asnaf_category)) {
     return NextResponse.json(
       { error: `Invalid asnaf_category. Must be one of: ${[...VALID_ASNAF].join(", ")}` },
@@ -85,49 +101,114 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const metrics = body.metrics ?? {};
-  const allocatedAmount = estimateAllocation(body.asnaf_category, metrics.dependents ?? 1);
+  const supabase = createClient<Database>(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-  const { data, error } = await supabase
-    .from("mustahik_proposals")
+  // 1. Identify field worker
+  const { data: fw, error: fwErr } = await supabase
+    .from("field_workers")
+    .select("id, institution_id, full_name, status")
+    .eq("telegram_chat_id", body.telegram_chat_id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (fwErr || !fw) {
+    return NextResponse.json(
+      { error: "Field worker tidak terdaftar atau tidak aktif. Hubungi supervisor lembaga Anda." },
+      { status: 403 }
+    );
+  }
+
+  // 2. Find or create mustahik_registry
+  const { data: existingMustahik } = await supabase
+    .from("mustahik_registry")
+    .select("id")
+    .eq("nik", body.nik)
+    .maybeSingle();
+
+  let mustahikId: string;
+  if (existingMustahik) {
+    mustahikId = existingMustahik.id;
+  } else {
+    const { data: newMustahik, error: mErr } = await supabase
+      .from("mustahik_registry")
+      .insert({
+        nik: body.nik,
+        full_name: body.full_name,
+        kecamatan_id: body.kecamatan_id ?? null,
+        first_registered_by_institution_id: fw.institution_id,
+      })
+      .select("id")
+      .single();
+
+    if (mErr || !newMustahik) {
+      return NextResponse.json(
+        { error: mErr?.message ?? "Gagal mendaftarkan mustahik" },
+        { status: 500 }
+      );
+    }
+    mustahikId = newMustahik.id;
+  }
+
+  // 3. Create assessment (one active per institution per mustahik — enforced by partial index)
+  const metrics = body.metrics ?? {};
+  const estimatedAmount = estimateAmount(body.asnaf_category, metrics.dependents ?? 1);
+
+  const { data: assess, error: aErr } = await supabase
+    .from("mustahik_assessments")
     .insert({
-      nik: body.nik,
-      full_name: body.full_name,
-      kecamatan_id: body.kecamatan_id ?? null,
+      mustahik_id: mustahikId,
+      institution_id: fw.institution_id,
       asnaf_category: body.asnaf_category,
       metrics,
-      allocated_amount: allocatedAmount,
+      estimated_amount: estimatedAmount,
       source: "TELEGRAM",
       status: "PENDING",
+      field_worker_id: fw.id,
     })
-    .select("id, priority_score, allocated_amount, status")
+    .select("id, priority_score, estimated_amount, status")
     .single();
 
-  if (error) {
-    if (error.code === "23505") {
+  if (aErr || !assess) {
+    if (aErr?.code === "23505") {
       return NextResponse.json(
-        { error: "Proposal aktif dengan NIK ini sudah ada" },
+        { error: "Mustahik ini sudah memiliki assessment aktif di lembaga Anda" },
         { status: 409 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: aErr?.message ?? "Gagal membuat assessment" },
+      { status: 500 }
+    );
   }
 
-  // Audit log — match audit_ledger schema (action, entity_type, entity_id, payload)
-  // Errors swallowed so audit failure doesn't break the webhook contract.
-  const { error: auditError } = await supabase.from("audit_ledger").insert({
-    action: "PROPOSAL_SUBMITTED",
-    entity_type: "mustahik_proposal",
-    entity_id: data.id,
-    payload: { source: "TELEGRAM", asnaf: body.asnaf_category },
+  // 4. Update field_worker.last_active_at
+  await supabase
+    .from("field_workers")
+    .update({ last_active_at: new Date().toISOString() })
+    .eq("id", fw.id);
+
+  // 5. Audit log
+  await supabase.from("audit_ledger").insert({
+    action: "ASSESSMENT_SUBMITTED",
+    entity_type: "mustahik_assessment",
+    entity_id: assess.id,
+    institution_id: fw.institution_id,
+    payload: {
+      source: "TELEGRAM",
+      asnaf: body.asnaf_category,
+      field_worker_id: fw.id,
+      mustahik_id: mustahikId,
+    },
   });
-  if (auditError) {
-    console.warn("[telegram-webhook] audit insert failed:", auditError.message);
-  }
 
   return NextResponse.json({
     success: true,
-    proposal: data,
-    message: `Proposal diterima. Skor prioritas: ${data.priority_score}`,
+    assessment: {
+      id: assess.id,
+      priority_score: assess.priority_score,
+      estimated_amount: assess.estimated_amount,
+      status: assess.status,
+    },
+    message: `Proposal diterima. Skor prioritas: ${assess.priority_score}`,
   });
 }

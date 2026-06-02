@@ -3,9 +3,11 @@ import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * Append an immutable event to audit_ledger.
- * Schema: { action, entity_type, entity_id, actor_id?, payload }
  *
- * Errors are swallowed and logged — auditing must NEVER block business logic.
+ * Schema audit_ledger v2:
+ *   action, entity_type, entity_id, actor_id, institution_id, payload
+ *
+ * Errors di-swallow + di-log — auditing tidak boleh block business logic.
  */
 export async function logAudit(
   supabase: SupabaseClient<Database>,
@@ -14,6 +16,7 @@ export async function logAudit(
     entityType: string;
     entityId?: string;
     actorId?: string;
+    institutionId?: string;
     payload?: Record<string, unknown>;
   }
 ): Promise<void> {
@@ -22,11 +25,11 @@ export async function logAudit(
     entity_type: params.entityType,
     entity_id: params.entityId ?? null,
     actor_id: params.actorId ?? null,
+    institution_id: params.institutionId ?? null,
     payload: (params.payload ?? {}) as Database["public"]["Tables"]["audit_ledger"]["Insert"]["payload"],
   });
 
   if (error) {
-    // Don't throw — audit failure shouldn't break the main flow.
     console.warn("[audit] failed to write event:", params.action, error.message);
   }
 }
