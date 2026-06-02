@@ -96,14 +96,27 @@ export async function getCurrentInstitution(): Promise<InstitutionContext | null
     };
   }
 
-  // Pilih institusi pertama (alphabetical) yang status=active
-  const { data: firstInst } = await admin
+  // Pilih institusi yang punya data paling banyak (untuk demo flow yang rich).
+  // Kalau tidak ada data, fallback ke institusi pertama yang aktif.
+  const { data: bestInst } = await admin
     .from("institutions")
-    .select("id, name")
+    .select("id, name, donations(count)")
     .eq("status", "active")
     .order("name")
-    .limit(1)
-    .maybeSingle();
+    .limit(50);
+
+  let firstInst: { id: string; name: string } | null = null;
+  if (bestInst && bestInst.length > 0) {
+    type InstWithCount = { id: string; name: string; donations: { count: number }[] };
+    const ranked = (bestInst as unknown as InstWithCount[])
+      .map((i) => ({
+        id: i.id,
+        name: i.name,
+        count: i.donations?.[0]?.count ?? 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+    firstInst = ranked[0] ? { id: ranked[0].id, name: ranked[0].name } : null;
+  }
 
   if (!firstInst) {
     console.warn("[institution] no active institution available for demo fallback");

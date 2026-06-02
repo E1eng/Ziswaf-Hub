@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -335,9 +335,8 @@ export function AllocationWizard({
                     const isSelected = sel?.selected ?? false;
                     const hasDup = c.duplicates.length > 0;
                     return (
-                      <>
+                      <Fragment key={c.assessmentId}>
                         <tr
-                          key={c.assessmentId}
                           className={`border-t ${isSelected ? "bg-emerald-50" : ""} ${
                             hasDup ? "bg-amber-50/40" : ""
                           }`}
@@ -439,7 +438,7 @@ export function AllocationWizard({
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
