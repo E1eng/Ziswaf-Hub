@@ -37,7 +37,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils/format";
+import { maskNik } from "@/lib/utils/privacy";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
+import { ASNAF_LABELS, AUDIT_ACTIONS, AUDIT_ENTITY, PROPOSAL_STATUS } from "@/lib/constants/ziswaf";
 import { toast } from "sonner";
 import { ProposalForm } from "./proposal-form";
 
@@ -53,29 +56,6 @@ interface Proposal {
   metrics: Record<string, unknown>;
   submitted_at: string;
   kecamatan_id: string | null;
-}
-
-const ASNAF_LABELS: Record<string, string> = {
-  fakir: "Fakir",
-  miskin: "Miskin",
-  amil: "Amil",
-  mualaf: "Mualaf",
-  riqab: "Riqab",
-  gharimin: "Gharimin",
-  fisabilillah: "Fisabilillah",
-  ibnu_sabil: "Ibnu Sabil",
-};
-
-const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  PENDING: { label: "Menunggu", variant: "secondary" },
-  APPROVED: { label: "Disetujui", variant: "default" },
-  REJECTED: { label: "Ditolak", variant: "destructive" },
-  DISBURSED: { label: "Disalurkan", variant: "outline" },
-};
-
-function maskNik(nik: string): string {
-  if (nik.length < 8) return "****";
-  return nik.slice(0, 4) + "****" + nik.slice(-4);
 }
 
 export default function ProposalPage() {
@@ -114,9 +94,7 @@ export default function ProposalPage() {
 
   const fetchStats = useCallback(async () => {
     const supabase = createClient();
-    const { data } = await supabase
-      .from("mustahik_proposals")
-      .select("status");
+    const { data } = await supabase.from("mustahik_proposals").select("status");
 
     if (data) {
       const pending = data.filter((d) => d.status === "PENDING").length;
@@ -127,6 +105,7 @@ export default function ProposalPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional data fetch on mount
     fetchProposals();
     fetchStats();
   }, [fetchProposals, fetchStats]);
@@ -135,15 +114,21 @@ export default function ProposalPage() {
     const supabase = createClient();
     const channel = supabase
       .channel("proposals-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "mustahik_proposals" }, (payload) => {
-        const p = payload.new as { full_name?: string };
-        toast.info("Proposal baru masuk", { description: p.full_name || "Data baru" });
-        fetchProposals();
-        fetchStats();
-      })
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "mustahik_proposals" },
+        (payload) => {
+          const p = payload.new as { full_name?: string };
+          toast.info("Proposal baru masuk", { description: p.full_name || "Data baru" });
+          fetchProposals();
+          fetchStats();
+        }
+      )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchProposals, fetchStats]);
 
   const handleAction = async (proposalId: string, action: "APPROVED" | "REJECTED") => {
@@ -152,18 +137,21 @@ export default function ProposalPage() {
 
     const { error } = await supabase
       .from("mustahik_proposals")
-      .update({ status: action, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .update({
+        status: action,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", proposalId);
 
     if (error) {
       toast.error("Gagal memproses", { description: error.message });
     } else {
       toast.success(action === "APPROVED" ? "Proposal disetujui" : "Proposal ditolak");
-      // Log audit
-      await (supabase as any).from("audit_ledger").insert({
-        action: action === "APPROVED" ? "PROPOSAL_APPROVED" : "PROPOSAL_REJECTED",
-        entity_type: "mustahik_proposal",
-        entity_id: proposalId,
+      await logAudit(supabase, {
+        action: action === "APPROVED" ? AUDIT_ACTIONS.PROPOSAL_APPROVED : AUDIT_ACTIONS.PROPOSAL_REJECTED,
+        entityType: AUDIT_ENTITY.MUSTAHIK_PROPOSAL,
+        entityId: proposalId,
         payload: { action },
       });
       fetchProposals();
@@ -181,13 +169,22 @@ export default function ProposalPage() {
 
     const { error } = await supabase
       .from("mustahik_proposals")
-      .update({ status: "APPROVED", reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .update({
+        status: "APPROVED",
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .in("id", pendingIds);
 
     if (error) {
       toast.error("Gagal approve massal", { description: error.message });
     } else {
       toast.success(`${pendingIds.length} proposal disetujui`);
+      await logAudit(supabase, {
+        action: AUDIT_ACTIONS.PROPOSAL_APPROVED,
+        entityType: AUDIT_ENTITY.MUSTAHIK_PROPOSAL,
+        payload: { bulk: true, count: pendingIds.length, ids: pendingIds },
+      });
       fetchProposals();
       fetchStats();
     }
@@ -206,7 +203,11 @@ export default function ProposalPage() {
       <main className="flex-1 p-8 space-y-6">
         {showForm && (
           <ProposalForm
-            onSuccess={() => { setShowForm(false); fetchProposals(); fetchStats(); }}
+            onSuccess={() => {
+              setShowForm(false);
+              fetchProposals();
+              fetchStats();
+            }}
             onCancel={() => setShowForm(false)}
           />
         )}
@@ -321,7 +322,7 @@ export default function ProposalPage() {
                   </TableHeader>
                   <TableBody>
                     {proposals.map((p, idx) => {
-                      const st = STATUS_CONFIG[p.status] || STATUS_CONFIG.PENDING;
+                      const st = PROPOSAL_STATUS[p.status as keyof typeof PROPOSAL_STATUS] ?? PROPOSAL_STATUS.PENDING;
                       return (
                         <TableRow key={p.id}>
                           <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
@@ -329,20 +330,32 @@ export default function ProposalPage() {
                           <TableCell className="font-medium">{p.full_name}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">
-                              {ASNAF_LABELS[p.asnaf_category] || p.asnaf_category}
+                              {ASNAF_LABELS[p.asnaf_category as keyof typeof ASNAF_LABELS] ?? p.asnaf_category}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className={`font-bold ${p.priority_score >= 60 ? "text-red-600" : p.priority_score >= 40 ? "text-amber-600" : "text-green-600"}`}>
+                            <span
+                              className={`font-bold ${
+                                p.priority_score >= 60
+                                  ? "text-red-600"
+                                  : p.priority_score >= 40
+                                  ? "text-amber-600"
+                                  : "text-green-600"
+                              }`}
+                            >
                               {p.priority_score}
                             </span>
                           </TableCell>
                           <TableCell className="text-right">{formatRupiah(p.allocated_amount)}</TableCell>
                           <TableCell className="text-center">
-                            <Badge variant={st.variant} className="text-xs">{st.label}</Badge>
+                            <Badge variant={st.variant} className="text-xs">
+                              {st.label}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge variant="outline" className="text-xs capitalize">{p.source.toLowerCase()}</Badge>
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {p.source.toLowerCase()}
+                            </Badge>
                           </TableCell>
                           {filter === "PENDING" && (
                             <TableCell className="text-center">

@@ -3,6 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
+import {
+  ASNAF_KEYS,
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY,
+  PROGRAM_STATUS,
+  PROGRAM_TYPE,
+  ProgramStatus,
+  ProgramType,
+  SECTOR_OPTIONS,
+  asnafLabel,
+} from "@/lib/constants/ziswaf";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,34 +26,14 @@ import {
   FolderOpen,
   CalendarClock,
   Zap,
-  AlertTriangle,
   ChevronRight,
   Loader2,
 } from "lucide-react";
 
-const ASNAF_OPTIONS = [
-  "fakir", "miskin", "amil", "mualaf",
-  "riqab", "gharimin", "fisabilillah", "ibnu_sabil",
-];
-
-const SECTOR_OPTIONS = [
-  { value: "ekonomi", label: "Ekonomi" },
-  { value: "pendidikan", label: "Pendidikan" },
-  { value: "kesehatan", label: "Kesehatan" },
-  { value: "kemanusiaan", label: "Kemanusiaan" },
-  { value: "dakwah", label: "Dakwah & Advokasi" },
-];
-
-const TYPE_CONFIG: Record<string, { label: string; color: string; icon: typeof CalendarClock }> = {
-  RUTIN: { label: "Rutin", color: "bg-blue-500", icon: CalendarClock },
-  PROPOSAL: { label: "Dari Proposal", color: "bg-purple-500", icon: FolderOpen },
-  INSIDENTIL: { label: "Insidentil", color: "bg-amber-500", icon: Zap },
-};
-
-const STATUS_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
-  DRAFT: { label: "Draft", variant: "secondary" },
-  ACTIVE: { label: "Aktif", variant: "default" },
-  COMPLETED: { label: "Selesai", variant: "outline" },
+const TYPE_ICON: Record<ProgramType, typeof CalendarClock> = {
+  RUTIN: CalendarClock,
+  PROPOSAL: FolderOpen,
+  INSIDENTIL: Zap,
 };
 
 interface Program {
@@ -66,7 +58,7 @@ export default function ProgramListPage() {
 
   // Form state
   const [name, setName] = useState("");
-  const [programType, setProgramType] = useState("RUTIN");
+  const [programType, setProgramType] = useState<ProgramType>("RUTIN");
   const [selectedAsnaf, setSelectedAsnaf] = useState<string[]>([]);
   const [sector, setSector] = useState("");
   const [budget, setBudget] = useState("");
@@ -85,23 +77,27 @@ export default function ProgramListPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional data fetch on mount
     fetchPrograms();
   }, [fetchPrograms]);
 
   const toggleAsnaf = (a: string) => {
-    setSelectedAsnaf((prev) =>
-      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]
-    );
+    setSelectedAsnaf((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
   };
 
   const handleCreate = async () => {
-    if (!name.trim()) { toast.error("Nama program wajib diisi"); return; }
-    if (selectedAsnaf.length === 0) { toast.error("Pilih minimal 1 kategori asnaf"); return; }
+    if (!name.trim()) {
+      toast.error("Nama program wajib diisi");
+      return;
+    }
+    if (selectedAsnaf.length === 0) {
+      toast.error("Pilih minimal 1 kategori asnaf");
+      return;
+    }
 
     setSaving(true);
     const supabase = createClient();
 
-    // Get institution
     const { data: inst } = await supabase
       .from("institutions")
       .select("id")
@@ -109,26 +105,42 @@ export default function ProgramListPage() {
       .limit(1)
       .single();
 
-    const { error } = await supabase.from("programs").insert({
-      institution_id: inst?.id || null,
-      name: name.trim(),
-      program_type: programType,
-      target_asnaf: selectedAsnaf,
-      sector: sector || null,
-      budget: parseFloat(budget) || 0,
-      period: period || null,
-      beneficiary_target: parseInt(beneficiaryTarget) || 0,
-      description: description || null,
-      status: "ACTIVE",
-    });
+    const { data: created, error } = await supabase
+      .from("programs")
+      .insert({
+        institution_id: inst?.id ?? null,
+        name: name.trim(),
+        program_type: programType,
+        target_asnaf: selectedAsnaf,
+        sector: sector || null,
+        budget: parseFloat(budget) || 0,
+        period: period || null,
+        beneficiary_target: parseInt(beneficiaryTarget) || 0,
+        description: description || null,
+        status: "ACTIVE",
+      })
+      .select("id")
+      .single();
 
     if (error) {
       toast.error("Gagal membuat program", { description: error.message });
     } else {
       toast.success("Program berhasil dibuat");
+      await logAudit(supabase, {
+        action: AUDIT_ACTIONS.PROGRAM_CREATED,
+        entityType: AUDIT_ENTITY.PROGRAM,
+        entityId: created?.id,
+        payload: { name: name.trim(), program_type: programType, target_asnaf: selectedAsnaf },
+      });
       setShowCreate(false);
-      setName(""); setProgramType("RUTIN"); setSelectedAsnaf([]); setSector("");
-      setBudget(""); setPeriod(""); setBeneficiaryTarget(""); setDescription("");
+      setName("");
+      setProgramType("RUTIN");
+      setSelectedAsnaf([]);
+      setSector("");
+      setBudget("");
+      setPeriod("");
+      setBeneficiaryTarget("");
+      setDescription("");
       fetchPrograms();
     }
     setSaving(false);
@@ -183,19 +195,23 @@ export default function ProgramListPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium mb-1 block">Nama Program *</label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Beasiswa Pendidikan Semester 1 2025" />
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Beasiswa Pendidikan Semester 1 2026"
+                />
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">Tipe Program</label>
                 <div className="flex gap-2">
-                  {(["RUTIN", "PROPOSAL", "INSIDENTIL"] as const).map((t) => (
+                  {(Object.keys(PROGRAM_TYPE) as ProgramType[]).map((t) => (
                     <Button
                       key={t}
                       size="sm"
                       variant={programType === t ? "default" : "outline"}
                       onClick={() => setProgramType(t)}
                     >
-                      {TYPE_CONFIG[t].label}
+                      {PROGRAM_TYPE[t].label}
                     </Button>
                   ))}
                 </div>
@@ -203,17 +219,18 @@ export default function ProgramListPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1 block">Target Asnaf * (pilih satu atau lebih)</label>
+              <label className="text-sm font-medium mb-1 block">
+                Target Asnaf * (pilih satu atau lebih)
+              </label>
               <div className="flex flex-wrap gap-2">
-                {ASNAF_OPTIONS.map((a) => (
+                {ASNAF_KEYS.map((a) => (
                   <Button
                     key={a}
                     size="sm"
                     variant={selectedAsnaf.includes(a) ? "default" : "outline"}
                     onClick={() => toggleAsnaf(a)}
-                    className="capitalize"
                   >
-                    {a.replace("_", " ")}
+                    {asnafLabel(a)}
                   </Button>
                 ))}
               </div>
@@ -229,21 +246,37 @@ export default function ProgramListPage() {
                 >
                   <option value="">Pilih sektor</option>
                   {SECTOR_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
                   ))}
                 </select>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">Anggaran (Rp)</label>
-                <Input type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="500000000" />
+                <Input
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  placeholder="500000000"
+                />
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">Periode</label>
-                <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="2025-S1" />
+                <Input
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  placeholder="2026-S1"
+                />
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">Target Penerima</label>
-                <Input type="number" value={beneficiaryTarget} onChange={(e) => setBeneficiaryTarget(e.target.value)} placeholder="100" />
+                <Input
+                  type="number"
+                  value={beneficiaryTarget}
+                  onChange={(e) => setBeneficiaryTarget(e.target.value)}
+                  placeholder="100"
+                />
               </div>
             </div>
 
@@ -262,7 +295,9 @@ export default function ProgramListPage() {
                 {saving && <Loader2 className="size-4 mr-2 animate-spin" />}
                 Simpan
               </Button>
-              <Button variant="outline" onClick={() => setShowCreate(false)}>Batal</Button>
+              <Button variant="outline" onClick={() => setShowCreate(false)}>
+                Batal
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -276,15 +311,17 @@ export default function ProgramListPage() {
           <CardContent className="py-12 text-center">
             <FolderOpen className="size-12 mx-auto text-muted-foreground/40 mb-4" />
             <h3 className="text-lg font-semibold">Belum ada program</h3>
-            <p className="text-sm text-muted-foreground mt-1">Buat program pertama untuk mulai menyalurkan dana ZISWAF</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Buat program pertama untuk mulai menyalurkan dana ZISWAF
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
           {programs.map((p) => {
-            const cfg = TYPE_CONFIG[p.program_type] || TYPE_CONFIG.RUTIN;
-            const stCfg = STATUS_LABEL[p.status] || STATUS_LABEL.DRAFT;
-            const TypeIcon = cfg.icon;
+            const cfgType = PROGRAM_TYPE[p.program_type as ProgramType] ?? PROGRAM_TYPE.RUTIN;
+            const cfgStatus = PROGRAM_STATUS[p.status as ProgramStatus] ?? PROGRAM_STATUS.DRAFT;
+            const TypeIcon = TYPE_ICON[p.program_type as ProgramType] ?? CalendarClock;
             return (
               <Card
                 key={p.id}
@@ -293,18 +330,18 @@ export default function ProgramListPage() {
               >
                 <CardContent className="py-4">
                   <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg text-white ${cfg.color}`}>
+                    <div className={`p-2 rounded-lg text-white ${cfgType.color}`}>
                       <TypeIcon className="size-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold truncate">{p.name}</h3>
-                        <Badge variant={stCfg.variant}>{stCfg.label}</Badge>
+                        <Badge variant={cfgStatus.variant}>{cfgStatus.label}</Badge>
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                        <span>{cfg.label}</span>
+                        <span>{cfgType.label}</span>
                         {p.sector && <span className="capitalize">{p.sector}</span>}
-                        <span>Asnaf: {p.target_asnaf.map((a) => a.replace("_", " ")).join(", ")}</span>
+                        <span>Asnaf: {p.target_asnaf.map(asnafLabel).join(", ")}</span>
                         {p.period && <span>{p.period}</span>}
                       </div>
                     </div>

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/client";
+import { BATCH_STATUS, BATCH_STATUS_FLOW, BatchStatus } from "@/lib/constants/ziswaf";
 
 interface BatchData {
   id: string;
@@ -94,8 +95,7 @@ export default function LacakPage() {
   const buildTimeline = (b: BatchData): TimelineStep[] => {
     const kecNames = (b.kecamatan_summary || []).map((k) => k.kecamatan).join(", ");
     const totalPeople = b.beneficiary_count;
-    const statusOrder = ["PROCESSING", "VERIFIED", "DISBURSED", "RECEIVED"];
-    const currentIdx = statusOrder.indexOf(b.status);
+    const currentIdx = BATCH_STATUS_FLOW.indexOf(b.status as BatchStatus);
 
     return [
       {
@@ -166,12 +166,7 @@ export default function LacakPage() {
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="h-12 text-lg"
           />
-          <Button
-            size="lg"
-            className="h-12 px-6"
-            onClick={handleSearch}
-            disabled={loading}
-          >
+          <Button size="lg" className="h-12 px-6" onClick={handleSearch} disabled={loading}>
             <Search className="size-5 mr-2" />
             {loading ? "Mencari..." : "Lacak"}
           </Button>
@@ -196,19 +191,10 @@ export default function LacakPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-2xl font-mono">{batch.batch_code}</CardTitle>
-                    <p className="text-muted-foreground mt-1">
-                      {formatDate(batch.created_at)}
-                    </p>
+                    <p className="text-muted-foreground mt-1">{formatDate(batch.created_at)}</p>
                   </div>
-                  <Badge className={`text-sm px-3 py-1 ${
-                    batch.status === "RECEIVED" ? "bg-emerald-500 text-white" :
-                    batch.status === "DISBURSED" ? "bg-green-500 text-white" :
-                    batch.status === "VERIFIED" ? "bg-amber-500 text-white" :
-                    "bg-blue-500 text-white"
-                  }`}>
-                    {batch.status === "RECEIVED" ? "Diterima" :
-                     batch.status === "DISBURSED" ? "Disalurkan" :
-                     batch.status === "VERIFIED" ? "Terverifikasi" : "Diproses"}
+                  <Badge className={BATCH_STATUS[batch.status as BatchStatus]?.color ?? BATCH_STATUS.PROCESSING.color}>
+                    {BATCH_STATUS[batch.status as BatchStatus]?.label ?? batch.status}
                   </Badge>
                 </div>
               </CardHeader>
@@ -247,15 +233,17 @@ export default function LacakPage() {
                     const Icon = step.icon;
                     return (
                       <div key={idx} className="relative pb-8 last:pb-0">
-                        {/* Dot */}
-                        <div className={`absolute -left-8 top-0.5 w-8 h-8 rounded-full flex items-center justify-center ${
-                          step.active ? "bg-green-500" : "bg-muted border-2 border-muted-foreground/20"
-                        }`}>
+                        <div
+                          className={`absolute -left-8 top-0.5 w-8 h-8 rounded-full flex items-center justify-center ${
+                            step.active ? "bg-green-500" : "bg-muted border-2 border-muted-foreground/20"
+                          }`}
+                        >
                           <Icon className={`size-4 ${step.active ? "text-white" : "text-muted-foreground/50"}`} />
                         </div>
-                        {/* Content */}
                         <div className="ml-4">
-                          <p className={`font-semibold text-base ${!step.active && "text-muted-foreground"}`}>{step.label}</p>
+                          <p className={`font-semibold text-base ${!step.active && "text-muted-foreground"}`}>
+                            {step.label}
+                          </p>
                           <p className="text-sm text-muted-foreground mt-0.5">{step.description}</p>
                           {step.active && step.time && (
                             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">

@@ -1,0 +1,41 @@
+"""
+34 Provinsi Indonesia dengan kode BPS, koordinat, dan pulau.
+Sumber: BPS — Kode dan Nama Wilayah Kerja Statistik 2024
+"""
+
+PROVINCES = [
+    {"bps_code": "11", "name": "Aceh", "lat": 4.6951, "lon": 96.7494, "island": "Sumatera"},
+    {"bps_code": "12", "name": "Sumatera Utara", "lat": 2.1154, "lon": 99.5451, "island": "Sumatera"},
+    {"bps_code": "13", "name": "Sumatera Barat", "lat": -0.7399, "lon": 100.8000, "island": "Sumatera"},
+    {"bps_code": "14", "name": "Riau", "lat": 1.5893, "lon": 101.3431, "island": "Sumatera"},
+    {"bps_code": "15", "name": "Jambi", "lat": -1.4852, "lon": 102.4381, "island": "Sumatera"},
+    {"bps_code": "16", "name": "Sumatera Selatan", "lat": -3.3194, "lon": 103.9144, "island": "Sumatera"},
+    {"bps_code": "17", "name": "Bengkulu", "lat": -3.5778, "lon": 102.3464, "island": "Sumatera"},
+    {"bps_code": "18", "name": "Lampung", "lat": -4.5586, "lon": 105.4068, "island": "Sumatera"},
+    {"bps_code": "19", "name": "Kepulauan Bangka Belitung", "lat": -2.7411, "lon": 106.4406, "island": "Sumatera"},
+    {"bps_code": "21", "name": "Kepulauan Riau", "lat": 3.9457, "lon": 108.1429, "island": "Sumatera"},
+    {"bps_code": "31", "name": "DKI Jakarta", "lat": -6.2088, "lon": 106.8456, "island": "Jawa"},
+    {"bps_code": "32", "name": "Jawa Barat", "lat": -6.9175, "lon": 107.6191, "island": "Jawa"},
+    {"bps_code": "33", "name": "Jawa Tengah", "lat": -7.1510, "lon": 110.1403, "island": "Jawa"},
+    {"bps_code": "34", "name": "DI Yogyakarta", "lat": -7.7956, "lon": 110.3695, "island": "Jawa"},
+    {"bps_code": "35", "name": "Jawa Timur", "lat": -7.5361, "lon": 112.2384, "island": "Jawa"},
+    {"bps_code": "36", "name": "Banten", "lat": -6.4058, "lon": 106.0640, "island": "Jawa"},
+    {"bps_code": "51", "name": "Bali", "lat": -8.4095, "lon": 115.1889, "island": "Bali-Nusa Tenggara"},
+    {"bps_code": "52", "name": "Nusa Tenggara Barat", "lat": -8.6529, "lon": 117.3616, "island": "Bali-Nusa Tenggara"},
+    {"bps_code": "53", "name": "Nusa Tenggara Timur", "lat": -8.6574, "lon": 121.0794, "island": "Bali-Nusa Tenggara"},
+    {"bps_code": "61", "name": "Kalimantan Barat", "lat": -0.2788, "lon": 111.4753, "island": "Kalimantan"},
+    {"bps_code": "62", "name": "Kalimantan Tengah", "lat": -1.6815, "lon": 113.3824, "island": "Kalimantan"},
+    {"bps_code": "63", "name": "Kalimantan Selatan", "lat": -3.0926, "lon": 115.2838, "island": "Kalimantan"},
+    {"bps_code": "64", "name": "Kalimantan Timur", "lat": 1.6407, "lon": 116.4194, "island": "Kalimantan"},
+    {"bps_code": "65", "name": "Kalimantan Utara", "lat": 3.0731, "lon": 116.0414, "island": "Kalimantan"},
+    {"bps_code": "71", "name": "Sulawesi Utara", "lat": 0.6247, "lon": 123.9750, "island": "Sulawesi"},
+    {"bps_code": "72", "name": "Sulawesi Tengah", "lat": -1.4300, "lon": 121.4456, "island": "Sulawesi"},
+    {"bps_code": "73", "name": "Sulawesi Selatan", "lat": -3.6688, "lon": 119.9741, "island": "Sulawesi"},
+    {"bps_code": "74", "name": "Sulawesi Tenggara", "lat": -4.1449, "lon": 122.1748, "island": "Sulawesi"},
+    {"bps_code": "75", "name": "Gorontalo", "lat": 0.6999, "lon": 122.4467, "island": "Sulawesi"},
+    {"bps_code": "76", "name": "Sulawesi Barat", "lat": -2.8441, "lon": 119.2321, "island": "Sulawesi"},
+    {"bps_code": "81", "name": "Maluku", "lat": -3.2385, "lon": 130.1453, "island": "Maluku"},
+    {"bps_code": "82", "name": "Maluku Utara", "lat": 1.5710, "lon": 127.8088, "island": "Maluku"},
+    {"bps_code": "91", "name": "Papua", "lat": -4.2699, "lon": 138.0804, "island": "Papua"},
+    {"bps_code": "92", "name": "Papua Barat", "lat": -1.3361, "lon": 133.1747, "island": "Papua"},
+]

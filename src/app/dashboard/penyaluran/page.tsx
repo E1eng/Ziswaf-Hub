@@ -23,12 +23,19 @@ import {
   Package,
   ArrowRight,
   CheckCircle,
-  ShieldCheck,
-  Truck,
-  PackageCheck,
 } from "lucide-react";
 import { formatRupiah } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
+import type { Database } from "@/lib/supabase/database.types";
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY,
+  BATCH_STATUS,
+  BATCH_STATUS_FLOW,
+  BatchStatus,
+  nextBatchStatus,
+} from "@/lib/constants/ziswaf";
 import { toast } from "sonner";
 
 interface Batch {
@@ -44,15 +51,6 @@ interface Batch {
   received_at: string | null;
 }
 
-const STATUS_FLOW = ["PROCESSING", "VERIFIED", "DISBURSED", "RECEIVED"] as const;
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  PROCESSING: { label: "Diproses", color: "bg-blue-100 text-blue-800", icon: Package },
-  VERIFIED: { label: "Terverifikasi", color: "bg-amber-100 text-amber-800", icon: ShieldCheck },
-  DISBURSED: { label: "Disalurkan", color: "bg-green-100 text-green-800", icon: Truck },
-  RECEIVED: { label: "Diterima", color: "bg-emerald-100 text-emerald-800", icon: PackageCheck },
-};
-
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "-";
   return new Date(dateStr).toLocaleDateString("id-ID", {
@@ -62,12 +60,6 @@ function formatDate(dateStr: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function getNextStatus(current: string): string | null {
-  const idx = STATUS_FLOW.indexOf(current as typeof STATUS_FLOW[number]);
-  if (idx === -1 || idx >= STATUS_FLOW.length - 1) return null;
-  return STATUS_FLOW[idx + 1];
 }
 
 export default function PenyaluranPage() {
@@ -86,23 +78,22 @@ export default function PenyaluranPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional data fetch on mount
     fetchBatches();
   }, [fetchBatches]);
 
   const handleAdvanceStatus = async (batch: Batch) => {
-    const next = getNextStatus(batch.status);
+    const next = nextBatchStatus(batch.status);
     if (!next) return;
 
     setUpdating(batch.id);
     const supabase = createClient();
 
     const now = new Date().toISOString();
-    const updateData = {
-      status: next,
-      ...(next === "VERIFIED" && { verified_at: now }),
-      ...(next === "DISBURSED" && { disbursed_at: now }),
-      ...(next === "RECEIVED" && { received_at: now }),
-    };
+    const updateData: Database["public"]["Tables"]["disbursement_batches"]["Update"] = { status: next };
+    if (next === "VERIFIED") updateData.verified_at = now;
+    if (next === "DISBURSED") updateData.disbursed_at = now;
+    if (next === "RECEIVED") updateData.received_at = now;
 
     const { error } = await supabase
       .from("disbursement_batches")
@@ -112,17 +103,23 @@ export default function PenyaluranPage() {
     if (error) {
       toast.error("Gagal update status", { description: error.message });
     } else {
-      toast.success(`Status diupdate ke ${STATUS_CONFIG[next].label}`);
+      toast.success(`Status diupdate ke ${BATCH_STATUS[next].label}`);
+      await logAudit(supabase, {
+        action: AUDIT_ACTIONS.BATCH_STATUS_UPDATED,
+        entityType: AUDIT_ENTITY.DISBURSEMENT_BATCH,
+        entityId: batch.id,
+        payload: { from: batch.status, to: next },
+      });
       fetchBatches();
     }
     setUpdating(null);
   };
 
-  const stats = {
-    processing: batches.filter((b) => b.status === "PROCESSING").length,
-    verified: batches.filter((b) => b.status === "VERIFIED").length,
-    disbursed: batches.filter((b) => b.status === "DISBURSED").length,
-    received: batches.filter((b) => b.status === "RECEIVED").length,
+  const stats: Record<BatchStatus, number> = {
+    PROCESSING: batches.filter((b) => b.status === "PROCESSING").length,
+    VERIFIED: batches.filter((b) => b.status === "VERIFIED").length,
+    DISBURSED: batches.filter((b) => b.status === "DISBURSED").length,
+    RECEIVED: batches.filter((b) => b.status === "RECEIVED").length,
   };
 
   return (
@@ -137,10 +134,9 @@ export default function PenyaluranPage() {
       <main className="flex-1 p-8 space-y-6">
         {/* Status summary */}
         <div className="grid gap-4 md:grid-cols-4">
-          {STATUS_FLOW.map((s) => {
-            const cfg = STATUS_CONFIG[s];
+          {BATCH_STATUS_FLOW.map((s) => {
+            const cfg = BATCH_STATUS[s];
             const Icon = cfg.icon;
-            const count = stats[s.toLowerCase() as keyof typeof stats];
             return (
               <Card key={s}>
                 <CardContent className="pt-5 flex items-center gap-4">
@@ -148,7 +144,7 @@ export default function PenyaluranPage() {
                     <Icon className="size-5" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{count}</p>
+                    <p className="text-2xl font-bold">{stats[s]}</p>
                     <p className="text-sm text-muted-foreground">{cfg.label}</p>
                   </div>
                 </CardContent>
@@ -189,9 +185,9 @@ export default function PenyaluranPage() {
                   </TableHeader>
                   <TableBody>
                     {batches.map((b) => {
-                      const cfg = STATUS_CONFIG[b.status] || STATUS_CONFIG.PROCESSING;
-                      const next = getNextStatus(b.status);
-                      const nextCfg = next ? STATUS_CONFIG[next] : null;
+                      const cfg = BATCH_STATUS[b.status as BatchStatus] ?? BATCH_STATUS.PROCESSING;
+                      const next = nextBatchStatus(b.status);
+                      const nextCfg = next ? BATCH_STATUS[next] : null;
                       return (
                         <TableRow key={b.id}>
                           <TableCell className="font-mono font-bold">{b.batch_code}</TableCell>

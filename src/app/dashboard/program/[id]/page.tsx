@@ -3,6 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
+import {
+  ASNAF_KEYS,
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY,
+  BENEFICIARY_STATUS,
+  BeneficiaryStatus,
+  asnafLabel,
+  generateBatchCode,
+} from "@/lib/constants/ziswaf";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,18 +24,10 @@ import {
   ArrowLeft,
   Loader2,
   ShieldCheck,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
   UserPlus,
   Upload,
   Package,
 } from "lucide-react";
-
-const ASNAF_OPTIONS = [
-  "fakir", "miskin", "amil", "mualaf",
-  "riqab", "gharimin", "fisabilillah", "ibnu_sabil",
-];
 
 interface Program {
   id: string;
@@ -51,12 +53,12 @@ interface Beneficiary {
   disbursement_batch_id: string | null;
 }
 
-const STATUS_ICON: Record<string, { icon: typeof CheckCircle; color: string }> = {
-  PENDING: { icon: Clock, color: "text-muted-foreground" },
-  VALIDATED: { icon: CheckCircle, color: "text-green-500" },
-  DUPLICATE: { icon: AlertTriangle, color: "text-amber-500" },
-  DISBURSED: { icon: Package, color: "text-blue-500" },
-};
+interface ParsedRow {
+  nik: string;
+  full_name: string;
+  asnaf_category: string;
+  amount: number;
+}
 
 export default function ProgramDetailPage() {
   const params = useParams();
@@ -80,7 +82,7 @@ export default function ProgramDetailPage() {
   // Bulk paste
   const [showBulk, setShowBulk] = useState(false);
   const [bulkText, setBulkText] = useState("");
-  const [bulkParsed, setBulkParsed] = useState<{ nik: string; full_name: string; asnaf_category: string; amount: number }[]>([]);
+  const [bulkParsed, setBulkParsed] = useState<ParsedRow[]>([]);
   const [savingBulk, setSavingBulk] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -99,13 +101,20 @@ export default function ProgramDetailPage() {
   }, [programId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional data fetch on mount
     fetchData();
   }, [fetchData]);
 
   // ── Single Add ──
   const handleAddSingle = async () => {
-    if (!sNik.trim() || sNik.trim().length !== 16) { toast.error("NIK harus 16 digit"); return; }
-    if (!sName.trim()) { toast.error("Nama wajib diisi"); return; }
+    if (!sNik.trim() || sNik.trim().length !== 16) {
+      toast.error("NIK harus 16 digit");
+      return;
+    }
+    if (!sName.trim()) {
+      toast.error("Nama wajib diisi");
+      return;
+    }
 
     setAddingSingle(true);
     const supabase = createClient();
@@ -121,7 +130,9 @@ export default function ProgramDetailPage() {
       toast.error("Gagal menambah penerima", { description: error.message });
     } else {
       toast.success("Penerima ditambahkan");
-      setSNik(""); setSName(""); setSAmount("");
+      setSNik("");
+      setSName("");
+      setSAmount("");
       fetchData();
     }
     setAddingSingle(false);
@@ -130,18 +141,19 @@ export default function ProgramDetailPage() {
   // ── Bulk Parse ──
   const handleParseBulk = () => {
     const lines = bulkText.trim().split("\n").filter(Boolean);
-    const parsed: typeof bulkParsed = [];
+    const parsed: ParsedRow[] = [];
+    const validAsnaf = new Set<string>(ASNAF_KEYS);
 
     for (const line of lines) {
       const parts = line.split(/\t|;|,/).map((s) => s.trim());
       if (parts.length < 3) continue;
-      // Format: NIK, Nama, Asnaf, [Nominal]
       const [nik, name, asnaf, amountStr] = parts;
       if (!nik || nik.length !== 16 || !name) continue;
+      const lcAsnaf = asnaf?.toLowerCase() ?? "";
       parsed.push({
         nik,
         full_name: name,
-        asnaf_category: ASNAF_OPTIONS.includes(asnaf?.toLowerCase()) ? asnaf.toLowerCase() : "fakir",
+        asnaf_category: validAsnaf.has(lcAsnaf) ? lcAsnaf : "fakir",
         amount: parseFloat(amountStr) || 0,
       });
     }
@@ -173,7 +185,8 @@ export default function ProgramDetailPage() {
       toast.error("Gagal menyimpan", { description: error.message });
     } else {
       toast.success(`${rows.length} penerima disimpan`);
-      setBulkText(""); setBulkParsed([]);
+      setBulkText("");
+      setBulkParsed([]);
       fetchData();
     }
     setSavingBulk(false);
@@ -182,40 +195,55 @@ export default function ProgramDetailPage() {
   // ── Validate Duplicates ──
   const handleValidate = async () => {
     const pending = beneficiaries.filter((b) => b.status === "PENDING");
-    if (pending.length === 0) { toast.info("Tidak ada penerima berstatus PENDING"); return; }
+    if (pending.length === 0) {
+      toast.info("Tidak ada penerima berstatus PENDING");
+      return;
+    }
 
     setValidating(true);
     const supabase = createClient();
     const niks = pending.map((b) => b.nik);
 
-    // Check 1: cross-program duplicates in program_beneficiaries
+    // Cross-program duplicates in program_beneficiaries
     const { data: crossDups } = await supabase
       .from("program_beneficiaries")
-      .select("nik, program_id, programs(name)")
+      .select("nik, program_id")
       .in("nik", niks)
       .neq("program_id", programId)
       .in("status", ["VALIDATED", "DISBURSED"]);
 
-    // Check 2: duplicates in mustahik_proposals (already disbursed)
+    // Resolve program names for the duplicates we found
+    const otherProgramIds = Array.from(new Set((crossDups ?? []).map((d) => d.program_id)));
+    const programNameById = new Map<string, string>();
+    if (otherProgramIds.length > 0) {
+      const { data: progs } = await supabase
+        .from("programs")
+        .select("id, name")
+        .in("id", otherProgramIds);
+      for (const p of progs ?? []) {
+        programNameById.set(p.id, p.name);
+      }
+    }
+
+    // Already disbursed via proposal channel
     const { data: proposalDups } = await supabase
       .from("mustahik_proposals")
       .select("nik")
       .in("nik", niks)
       .eq("status", "DISBURSED");
 
-    // Build duplicate map
     const dupMap = new Map<string, string>();
-    for (const d of (crossDups || []) as any[]) {
-      const progName = d.programs?.name || "program lain";
+    for (const d of crossDups ?? []) {
+      const progName = programNameById.get(d.program_id) ?? "program lain";
       dupMap.set(d.nik, `Sudah terdaftar di: ${progName}`);
     }
-    for (const d of (proposalDups || []) as any[]) {
+    for (const d of proposalDups ?? []) {
       if (!dupMap.has(d.nik)) {
         dupMap.set(d.nik, "Sudah menerima via jalur proposal");
       }
     }
 
-    // Check 3: intra-program duplicates (same NIK multiple times)
+    // Intra-program duplicates
     const nikCount = new Map<string, number>();
     for (const b of beneficiaries) {
       nikCount.set(b.nik, (nikCount.get(b.nik) || 0) + 1);
@@ -226,10 +254,8 @@ export default function ProgramDetailPage() {
       }
     }
 
-    // Update statuses
     let validated = 0;
     let duplicates = 0;
-
     for (const b of pending) {
       const dupNote = dupMap.get(b.nik);
       if (dupNote) {
@@ -239,10 +265,7 @@ export default function ProgramDetailPage() {
           .eq("id", b.id);
         duplicates++;
       } else {
-        await supabase
-          .from("program_beneficiaries")
-          .update({ status: "VALIDATED" })
-          .eq("id", b.id);
+        await supabase.from("program_beneficiaries").update({ status: "VALIDATED" }).eq("id", b.id);
         validated++;
       }
     }
@@ -255,12 +278,15 @@ export default function ProgramDetailPage() {
   // ── Create Batch ──
   const handleCreateBatch = async () => {
     const valid = beneficiaries.filter((b) => b.status === "VALIDATED");
-    if (valid.length === 0) { toast.error("Tidak ada penerima tervalidasi"); return; }
+    if (valid.length === 0) {
+      toast.error("Tidak ada penerima tervalidasi");
+      return;
+    }
 
     setCreatingBatch(true);
     const supabase = createClient();
     const totalAmount = valid.reduce((s, b) => s + b.amount, 0);
-    const code = `BATCH-${Date.now().toString(36).toUpperCase()}`;
+    const code = generateBatchCode("BATCH");
 
     const { data: batch, error: batchErr } = await supabase
       .from("disbursement_batches")
@@ -282,16 +308,24 @@ export default function ProgramDetailPage() {
       return;
     }
 
-    // Link beneficiaries to batch
     const { error: linkErr } = await supabase
       .from("program_beneficiaries")
       .update({ status: "DISBURSED", disbursement_batch_id: batch.id })
-      .in("id", valid.map((b) => b.id));
+      .in(
+        "id",
+        valid.map((b) => b.id)
+      );
 
     if (linkErr) {
       toast.error("Gagal menautkan penerima ke batch");
     } else {
       toast.success(`Batch ${code} dibuat dengan ${valid.length} penerima`);
+      await logAudit(supabase, {
+        action: AUDIT_ACTIONS.PROGRAM_BATCH_CREATED,
+        entityType: AUDIT_ENTITY.DISBURSEMENT_BATCH,
+        entityId: batch.id,
+        payload: { batch_code: code, program_id: programId, beneficiaries: valid.length, total: totalAmount },
+      });
     }
 
     fetchData();
@@ -299,14 +333,20 @@ export default function ProgramDetailPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="size-6 animate-spin" /></div>;
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="size-6 animate-spin" />
+      </div>
+    );
   }
 
   if (!program) {
     return (
       <div className="text-center py-20">
         <p className="text-muted-foreground">Program tidak ditemukan</p>
-        <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/program")}>Kembali</Button>
+        <Button variant="outline" className="mt-4" onClick={() => router.push("/dashboard/program")}>
+          Kembali
+        </Button>
       </div>
     );
   }
@@ -314,7 +354,6 @@ export default function ProgramDetailPage() {
   const pendingCount = beneficiaries.filter((b) => b.status === "PENDING").length;
   const validCount = beneficiaries.filter((b) => b.status === "VALIDATED").length;
   const dupCount = beneficiaries.filter((b) => b.status === "DUPLICATE").length;
-  const disbursedCount = beneficiaries.filter((b) => b.status === "DISBURSED").length;
   const totalAllocated = beneficiaries.reduce((s, b) => s + b.amount, 0);
 
   return (
@@ -327,44 +366,70 @@ export default function ProgramDetailPage() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{program.name}</h1>
           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-            <Badge variant="secondary" className="capitalize">{program.program_type.toLowerCase()}</Badge>
+            <Badge variant="secondary" className="capitalize">
+              {program.program_type.toLowerCase()}
+            </Badge>
             {program.sector && <span className="capitalize">{program.sector}</span>}
             {program.period && <span>{program.period}</span>}
-            <span>Asnaf: {program.target_asnaf.map((a) => a.replace("_", " ")).join(", ")}</span>
+            <span>Asnaf: {program.target_asnaf.map(asnafLabel).join(", ")}</span>
           </div>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid gap-3 md:grid-cols-5">
-        <Card><CardContent className="pt-5 text-center">
-          <p className="text-2xl font-bold">{formatRupiah(program.budget)}</p>
-          <p className="text-xs text-muted-foreground">Anggaran</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-5 text-center">
-          <p className="text-2xl font-bold">{formatRupiah(totalAllocated)}</p>
-          <p className="text-xs text-muted-foreground">Teralokasi</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-5 text-center">
-          <p className="text-2xl font-bold">{beneficiaries.length}/{program.beneficiary_target}</p>
-          <p className="text-xs text-muted-foreground">Penerima</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-5 text-center">
-          <p className="text-2xl font-bold text-green-600">{validCount}</p>
-          <p className="text-xs text-muted-foreground">Tervalidasi</p>
-        </CardContent></Card>
-        <Card><CardContent className="pt-5 text-center">
-          <p className="text-2xl font-bold text-amber-600">{dupCount}</p>
-          <p className="text-xs text-muted-foreground">Duplikat</p>
-        </CardContent></Card>
+        <Card>
+          <CardContent className="pt-5 text-center">
+            <p className="text-2xl font-bold">{formatRupiah(program.budget)}</p>
+            <p className="text-xs text-muted-foreground">Anggaran</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 text-center">
+            <p className="text-2xl font-bold">{formatRupiah(totalAllocated)}</p>
+            <p className="text-xs text-muted-foreground">Teralokasi</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 text-center">
+            <p className="text-2xl font-bold">
+              {beneficiaries.length}/{program.beneficiary_target}
+            </p>
+            <p className="text-xs text-muted-foreground">Penerima</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 text-center">
+            <p className="text-2xl font-bold text-green-600">{validCount}</p>
+            <p className="text-xs text-muted-foreground">Tervalidasi</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 text-center">
+            <p className="text-2xl font-bold text-amber-600">{dupCount}</p>
+            <p className="text-xs text-muted-foreground">Duplikat</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Actions */}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => { setShowSingle(!showSingle); setShowBulk(false); }}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setShowSingle(!showSingle);
+            setShowBulk(false);
+          }}
+        >
           <UserPlus className="size-4 mr-2" /> Tambah Satu
         </Button>
-        <Button variant="outline" onClick={() => { setShowBulk(!showBulk); setShowSingle(false); }}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setShowBulk(!showBulk);
+            setShowSingle(false);
+          }}
+        >
           <Upload className="size-4 mr-2" /> Bulk Paste
         </Button>
         {pendingCount > 0 && (
@@ -384,7 +449,9 @@ export default function ProgramDetailPage() {
       {/* Single add form */}
       {showSingle && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Tambah Penerima</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Tambah Penerima</CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-5">
               <div>
@@ -397,8 +464,16 @@ export default function ProgramDetailPage() {
               </div>
               <div>
                 <label className="text-xs font-medium mb-1 block">Asnaf</label>
-                <select className="w-full rounded-md border px-3 py-2 text-sm bg-background" value={sAsnaf} onChange={(e) => setSAsnaf(e.target.value)}>
-                  {ASNAF_OPTIONS.map((a) => <option key={a} value={a} className="capitalize">{a.replace("_", " ")}</option>)}
+                <select
+                  className="w-full rounded-md border px-3 py-2 text-sm bg-background"
+                  value={sAsnaf}
+                  onChange={(e) => setSAsnaf(e.target.value)}
+                >
+                  {ASNAF_KEYS.map((a) => (
+                    <option key={a} value={a}>
+                      {asnafLabel(a)}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -418,10 +493,13 @@ export default function ProgramDetailPage() {
       {/* Bulk paste */}
       {showBulk && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Bulk Paste dari Spreadsheet</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Bulk Paste dari Spreadsheet</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Format: <code className="bg-muted px-1 rounded">NIK, Nama, Asnaf, Nominal</code> — pisahkan dengan tab, koma, atau titik koma. Satu baris per penerima.
+              Format: <code className="bg-muted px-1 rounded">NIK, Nama, Asnaf, Nominal</code> — pisahkan dengan tab,
+              koma, atau titik koma. Satu baris per penerima.
             </p>
             <textarea
               className="w-full rounded-md border px-3 py-2 text-sm bg-background font-mono min-h-[120px]"
@@ -456,7 +534,7 @@ export default function ProgramDetailPage() {
                       <tr key={i} className="border-t">
                         <td className="px-3 py-1.5 font-mono">{maskNik(b.nik)}</td>
                         <td className="px-3 py-1.5">{b.full_name}</td>
-                        <td className="px-3 py-1.5 capitalize">{b.asnaf_category}</td>
+                        <td className="px-3 py-1.5 capitalize">{asnafLabel(b.asnaf_category)}</td>
                         <td className="px-3 py-1.5 text-right">{formatRupiah(b.amount)}</td>
                       </tr>
                     ))}
@@ -493,18 +571,18 @@ export default function ProgramDetailPage() {
                 </thead>
                 <tbody>
                   {beneficiaries.map((b) => {
-                    const si = STATUS_ICON[b.status] || STATUS_ICON.PENDING;
+                    const si = BENEFICIARY_STATUS[b.status as BeneficiaryStatus] ?? BENEFICIARY_STATUS.PENDING;
                     const Icon = si.icon;
                     return (
                       <tr key={b.id} className="border-t">
                         <td className="px-3 py-2 font-mono text-xs">{maskNik(b.nik)}</td>
                         <td className="px-3 py-2">{b.full_name}</td>
-                        <td className="px-3 py-2 capitalize">{b.asnaf_category.replace("_", " ")}</td>
+                        <td className="px-3 py-2 capitalize">{asnafLabel(b.asnaf_category)}</td>
                         <td className="px-3 py-2 text-right">{formatRupiah(b.amount)}</td>
                         <td className="px-3 py-2 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Icon className={`size-4 ${si.color}`} />
-                            <span className="text-xs">{b.status}</span>
+                            <span className="text-xs">{si.label}</span>
                           </div>
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">{b.duplicate_note || "—"}</td>

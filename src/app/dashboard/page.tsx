@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatRupiah, formatNumber } from "@/lib/utils/format";
+import { PROPOSAL_STATUS } from "@/lib/constants/ziswaf";
 
 async function getDashboardData() {
   const supabase = await createClient();
@@ -31,20 +32,22 @@ async function getDashboardData() {
   ] = await Promise.all([
     supabase.from("mustahik_proposals").select("status, allocated_amount"),
     supabase.from("disbursement_batches").select("total_amount, beneficiary_count"),
-    supabase.from("mustahik_proposals")
+    supabase
+      .from("mustahik_proposals")
       .select("id, full_name, asnaf_category, status, priority_score, allocated_amount, submitted_at")
       .order("submitted_at", { ascending: false })
       .limit(5),
-    supabase.from("disbursement_batches")
+    supabase
+      .from("disbursement_batches")
       .select("batch_code, total_amount, beneficiary_count, status, created_at")
       .order("created_at", { ascending: false })
       .limit(5),
   ]);
 
   const all = proposals || [];
-  const pending = all.filter(p => p.status === "PENDING").length;
-  const approved = all.filter(p => p.status === "APPROVED").length;
-  const disbursed = all.filter(p => p.status === "DISBURSED").length;
+  const pending = all.filter((p) => p.status === "PENDING").length;
+  const approved = all.filter((p) => p.status === "APPROVED").length;
+  const disbursed = all.filter((p) => p.status === "DISBURSED").length;
   const total = all.length;
 
   const totalDisbursed = (batches || []).reduce((s, b) => s + (b.total_amount || 0), 0);
@@ -52,8 +55,13 @@ async function getDashboardData() {
   const totalBatches = (batches || []).length;
 
   return {
-    pending, approved, disbursed, total,
-    totalDisbursed, totalBeneficiaries, totalBatches,
+    pending,
+    approved,
+    disbursed,
+    total,
+    totalDisbursed,
+    totalBeneficiaries,
+    totalBatches,
     recentProposals: recentProposals || [],
     recentBatches: recentBatches || [],
   };
@@ -61,13 +69,6 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const d = await getDashboardData();
-
-  const statusLabel: Record<string, { text: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    PENDING: { text: "Menunggu", variant: "outline" },
-    APPROVED: { text: "Disetujui", variant: "secondary" },
-    REJECTED: { text: "Ditolak", variant: "destructive" },
-    DISBURSED: { text: "Disalurkan", variant: "default" },
-  };
 
   return (
     <div className="flex flex-col">
@@ -88,18 +89,27 @@ export default async function DashboardPage() {
                 Belum ada data proposal. Ikuti langkah berikut untuk memulai:
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-                <Link href="/dashboard/proposal" className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors">
-                  <span className="bg-primary-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">1</span>
+                <Link
+                  href="/dashboard/proposal"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                >
+                  <span className="bg-primary-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">
+                    1
+                  </span>
                   Ajukan Proposal
                 </Link>
                 <ArrowRight className="size-4 text-muted-foreground hidden sm:block" />
                 <span className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg text-muted-foreground">
-                  <span className="bg-muted-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">2</span>
+                  <span className="bg-muted-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">
+                    2
+                  </span>
                   Review & Setujui
                 </span>
                 <ArrowRight className="size-4 text-muted-foreground hidden sm:block" />
                 <span className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg text-muted-foreground">
-                  <span className="bg-muted-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">3</span>
+                  <span className="bg-muted-foreground/20 rounded-full size-6 flex items-center justify-center text-sm font-bold">
+                    3
+                  </span>
                   Alokasi Cerdas
                 </span>
               </div>
@@ -128,9 +138,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{d.pending}</div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Proposal perlu ditinjau
-              </p>
+              <p className="text-sm text-muted-foreground mt-2">Proposal perlu ditinjau</p>
             </CardContent>
           </Card>
           <Card>
@@ -152,9 +160,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{d.approved}</div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Proposal disetujui, belum disalurkan
-              </p>
+              <p className="text-sm text-muted-foreground mt-2">Proposal disetujui, belum disalurkan</p>
             </CardContent>
           </Card>
         </div>
@@ -225,20 +231,25 @@ export default async function DashboardPage() {
                 <p className="text-sm text-muted-foreground py-8 text-center">Belum ada proposal</p>
               ) : (
                 <div className="space-y-2">
-                  {d.recentProposals.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">{p.full_name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{p.asnaf_category} &middot; Skor {p.priority_score}</p>
+                  {d.recentProposals.map((p) => {
+                    const st = PROPOSAL_STATUS[p.status as keyof typeof PROPOSAL_STATUS];
+                    return (
+                      <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                        <div>
+                          <p className="text-sm font-medium">{p.full_name}</p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {p.asnaf_category} &middot; Skor {p.priority_score}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{formatRupiah(p.allocated_amount || 0)}</span>
+                          <Badge variant={st?.variant ?? "outline"} className="text-xs">
+                            {st?.label ?? p.status}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{formatRupiah(p.allocated_amount || 0)}</span>
-                        <Badge variant={statusLabel[p.status]?.variant || "outline"} className="text-xs">
-                          {statusLabel[p.status]?.text || p.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -267,7 +278,9 @@ export default async function DashboardPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium">{formatRupiah(b.total_amount || 0)}</p>
-                        <Badge variant="default" className="text-xs">{b.status}</Badge>
+                        <Badge variant="default" className="text-xs">
+                          {b.status}
+                        </Badge>
                       </div>
                     </div>
                   ))}

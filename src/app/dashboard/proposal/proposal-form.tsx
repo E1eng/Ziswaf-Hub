@@ -20,18 +20,9 @@ import {
 } from "@/components/ui/select";
 import { Loader2, UserPlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
+import { ASNAF_KEYS, ASNAF_LABELS, AUDIT_ACTIONS, AUDIT_ENTITY, HOUSING_OPTIONS } from "@/lib/constants/ziswaf";
 import { toast } from "sonner";
-
-const ASNAF_OPTIONS = [
-  { value: "fakir", label: "Fakir" },
-  { value: "miskin", label: "Miskin" },
-  { value: "amil", label: "Amil" },
-  { value: "mualaf", label: "Mualaf" },
-  { value: "riqab", label: "Riqab" },
-  { value: "gharimin", label: "Gharimin" },
-  { value: "fisabilillah", label: "Fisabilillah" },
-  { value: "ibnu_sabil", label: "Ibnu Sabil" },
-];
 
 interface Props {
   onSuccess: () => void;
@@ -64,24 +55,38 @@ export function ProposalForm({ onSuccess, onCancel }: Props) {
       housing: housing || "unknown",
     };
 
-    const { error } = await supabase.from("mustahik_proposals").insert({
-      nik,
-      full_name: fullName.trim(),
-      asnaf_category: asnaf,
-      metrics,
-      allocated_amount: Number(allocatedAmount),
-      source: "MANUAL",
-      status: "PENDING",
-    });
+    const { data, error } = await supabase
+      .from("mustahik_proposals")
+      .insert({
+        nik,
+        full_name: fullName.trim(),
+        asnaf_category: asnaf,
+        metrics,
+        allocated_amount: Number(allocatedAmount),
+        source: "MANUAL",
+        status: "PENDING",
+      })
+      .select("id")
+      .single();
 
     if (error) {
       if (error.code === "23505") {
-        toast.error("NIK sudah terdaftar", { description: "Mustahik ini sudah memiliki proposal aktif." });
+        toast.error("NIK sudah terdaftar", {
+          description: "Mustahik ini sudah memiliki proposal aktif.",
+        });
       } else {
         toast.error("Gagal menyimpan", { description: error.message });
       }
     } else {
-      toast.success("Proposal berhasil diajukan", { description: `${fullName} ditambahkan ke antrian review.` });
+      toast.success("Proposal berhasil diajukan", {
+        description: `${fullName} ditambahkan ke antrian review.`,
+      });
+      await logAudit(supabase, {
+        action: AUDIT_ACTIONS.PROPOSAL_SUBMITTED,
+        entityType: AUDIT_ENTITY.MUSTAHIK_PROPOSAL,
+        entityId: data?.id,
+        payload: { source: "MANUAL", asnaf },
+      });
       onSuccess();
     }
     setLoading(false);
@@ -110,9 +115,7 @@ export function ProposalForm({ onSuccess, onCancel }: Props) {
                 onChange={(e) => setNik(e.target.value.replace(/\D/g, "").slice(0, 16))}
                 maxLength={16}
               />
-              {nik && nik.length !== 16 && (
-                <p className="text-xs text-red-500">NIK harus 16 digit</p>
-              )}
+              {nik && nik.length !== 16 && <p className="text-xs text-red-500">NIK harus 16 digit</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="name">Nama Lengkap</Label>
@@ -133,8 +136,10 @@ export function ProposalForm({ onSuccess, onCancel }: Props) {
                   <SelectValue placeholder="Pilih kategori" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ASNAF_OPTIONS.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                  {ASNAF_KEYS.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {ASNAF_LABELS[key]}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -179,10 +184,11 @@ export function ProposalForm({ onSuccess, onCancel }: Props) {
                   <SelectValue placeholder="Pilih" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="own">Milik Sendiri</SelectItem>
-                  <SelectItem value="rental">Sewa/Kontrak</SelectItem>
-                  <SelectItem value="family">Numpang Keluarga</SelectItem>
-                  <SelectItem value="homeless">Tidak Punya</SelectItem>
+                  {HOUSING_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

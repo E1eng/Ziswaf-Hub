@@ -1,41 +1,30 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { formatRupiah, formatNumber, formatPct } from "@/lib/utils/format";
+import { formatRupiah, formatNumber } from "@/lib/utils/format";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowRight,
-  BarChart3,
-  Building2,
-  CheckCircle,
-  Shield,
   Target,
-  TrendingUp,
   Search,
   Package,
   Calculator,
+  ShieldCheck,
 } from "lucide-react";
 
 async function getLandingStats() {
   const supabase = await createClient();
-  const year = 2024;
 
-  const [{ data: coll }, { data: dist }, { data: gap }, { data: inst }] = await Promise.all([
-    supabase.from("mv_collection_by_region_year").select("total_amount, total_donors").eq("year", year),
-    supabase.from("mv_distribution_by_region_year").select("total_amount, total_beneficiaries").eq("year", year),
-    supabase.from("mv_gap_analysis").select("estimated_potential, actual_collection").eq("year", year),
-    supabase.from("institutions").select("id"),
+  const [{ data: proposals }, { data: batches }] = await Promise.all([
+    supabase.from("mustahik_proposals").select("status, allocated_amount"),
+    supabase.from("disbursement_batches").select("total_amount, beneficiary_count, status"),
   ]);
 
-  type R = Record<string, any>;
-  const totalCollection = ((coll || []) as R[]).reduce((s, r) => s + (r.total_amount || 0), 0);
-  const totalDist = ((dist || []) as R[]).reduce((s, r) => s + (r.total_amount || 0), 0);
-  const totalBenef = ((dist || []) as R[]).reduce((s, r) => s + (r.total_beneficiaries || 0), 0);
-  const totalPotential = ((gap || []) as R[]).reduce((s, r) => s + (r.estimated_potential || 0), 0);
-  const totalActual = ((gap || []) as R[]).reduce((s, r) => s + (r.actual_collection || 0), 0);
-  const gapPct = totalPotential > 0 ? ((totalPotential - totalActual) / totalPotential) * 100 : 0;
-  const lembagaCount = (inst || []).length;
+  const proposalCount = (proposals ?? []).length;
+  const totalDisbursed = (batches ?? []).reduce((s, b) => s + (b.total_amount ?? 0), 0);
+  const totalBeneficiaries = (batches ?? []).reduce((s, b) => s + (b.beneficiary_count ?? 0), 0);
+  const batchCount = (batches ?? []).length;
 
-  return { totalCollection, totalDist, totalBenef, gapPct, lembagaCount };
+  return { proposalCount, totalDisbursed, totalBeneficiaries, batchCount };
 }
 
 export default async function LandingPage() {
@@ -53,14 +42,8 @@ export default async function LandingPage() {
             ZISWAF Hub
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-base">
-            <Link href="/analitik" className="text-muted-foreground hover:text-foreground transition-colors">
-              Data Nasional
-            </Link>
-            <Link href="/direktori" className="text-muted-foreground hover:text-foreground transition-colors">
-              Direktori Lembaga
-            </Link>
             <Link href="/lacak" className="text-muted-foreground hover:text-foreground transition-colors">
-              Lacak Donasi
+              Lacak Penyaluran
             </Link>
           </nav>
           <div className="flex items-center gap-3">
@@ -91,15 +74,18 @@ export default async function LandingPage() {
         <div className="container mx-auto px-6 py-28 md:py-40">
           <div className="max-w-4xl mx-auto text-center space-y-10">
             <Badge variant="secondary" className="text-base px-5 py-2">
-              Platform ZISWAF Pertama di Indonesia
+              Targeting Mustahik per NIK — Anti Duplikasi
             </Badge>
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
               Salurkan ZISWAF ke{" "}
-              <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">Penerima yang Tepat</span>
+              <span className="bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Penerima yang Tepat
+              </span>
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-              ZISWAF Hub membantu lembaga Zakat, Infaq, Sedekah, dan Wakaf
-              menentukan kemana dana harus disalurkan — berdasarkan data, transparan, dan tepat sasaran.
+              ZISWAF Hub membantu lembaga Zakat, Infaq, Sedekah, dan Wakaf memilih mustahik secara
+              individual berdasarkan skor prioritas — transparan, terlacak per NIK, anti duplikasi
+              lintas-lembaga.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
               <Link
@@ -124,28 +110,24 @@ export default async function LandingPage() {
       <section className="border-t border-b bg-muted/30">
         <div className="container mx-auto px-6 py-20">
           <p className="text-center text-base font-medium text-muted-foreground mb-10">
-            Data ZISWAF Nasional Tahun 2024
+            Aktivitas Platform Saat Ini
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-10 max-w-5xl mx-auto text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-10 max-w-5xl mx-auto text-center">
             <div>
-              <p className="text-3xl md:text-4xl font-bold">{formatRupiah(stats.totalCollection)}</p>
-              <p className="text-sm text-muted-foreground mt-2">Pengumpulan 2024</p>
+              <p className="text-3xl md:text-4xl font-bold">{formatNumber(stats.proposalCount)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Proposal Mustahik</p>
             </div>
             <div>
-              <p className="text-3xl md:text-4xl font-bold">{formatRupiah(stats.totalDist)}</p>
-              <p className="text-sm text-muted-foreground mt-2">Penyaluran 2024</p>
+              <p className="text-3xl md:text-4xl font-bold">{formatRupiah(stats.totalDisbursed)}</p>
+              <p className="text-sm text-muted-foreground mt-2">Total Disalurkan</p>
             </div>
             <div>
-              <p className="text-3xl md:text-4xl font-bold">{formatNumber(stats.totalBenef, true)}</p>
+              <p className="text-3xl md:text-4xl font-bold">{formatNumber(stats.totalBeneficiaries, true)}</p>
               <p className="text-sm text-muted-foreground mt-2">Penerima Manfaat</p>
             </div>
             <div>
-              <p className="text-3xl md:text-4xl font-bold">{stats.lembagaCount}</p>
-              <p className="text-sm text-muted-foreground mt-2">Lembaga Terdaftar</p>
-            </div>
-            <div>
-              <p className="text-3xl md:text-4xl font-bold text-red-600">{formatPct(stats.gapPct)}</p>
-              <p className="text-sm text-muted-foreground mt-2">Potensi Belum Tercapai</p>
+              <p className="text-3xl md:text-4xl font-bold">{stats.batchCount}</p>
+              <p className="text-sm text-muted-foreground mt-2">Batch Penyaluran</p>
             </div>
           </div>
         </div>
@@ -158,9 +140,9 @@ export default async function LandingPage() {
             <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
               <Package className="size-7 text-primary" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold">Lacak Status Donasi Anda</h2>
+            <h2 className="text-2xl md:text-3xl font-bold">Lacak Status Penyaluran</h2>
             <p className="text-lg text-muted-foreground">
-              Masukkan kode batch untuk melihat kemana dana Anda telah disalurkan
+              Masukkan kode batch untuk melihat tahapan penyaluran (data anonim — sesuai UU PDP)
             </p>
             <div className="flex gap-3 max-w-md mx-auto">
               <Link
@@ -172,7 +154,7 @@ export default async function LandingPage() {
               </Link>
             </div>
             <p className="text-sm text-muted-foreground">
-              Contoh: <code className="bg-muted px-2 py-0.5 rounded">ZH-2024-000001</code>
+              Contoh: <code className="bg-muted px-2 py-0.5 rounded">ZH-2026-000001</code>
             </p>
           </div>
         </div>
@@ -183,34 +165,39 @@ export default async function LandingPage() {
         <div className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold">Mengapa ZISWAF Hub?</h2>
-            <p className="text-lg text-muted-foreground mt-3">Satu platform untuk seluruh pengelolaan ZISWAF</p>
+            <p className="text-lg text-muted-foreground mt-3">
+              Tiga keunggulan utama untuk lembaga ZISWAF
+            </p>
           </div>
           <div className="grid gap-8 md:grid-cols-3 max-w-5xl mx-auto">
             <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Target className="size-8 text-primary" />
               </div>
-              <h3 className="font-bold text-xl">Smart Targeting Kecamatan</h3>
+              <h3 className="font-bold text-xl">Targeting per Individu</h3>
               <p className="text-base text-muted-foreground leading-relaxed">
-                Analisis 6.455 kecamatan se-Indonesia. Estimasi 8 kategori asnaf per daerah berdasarkan data BPS.
+                Skor prioritas otomatis dari pendapatan, jumlah tanggungan, kategori asnaf, dan kondisi
+                tempat tinggal. NIK tervalidasi, anti-duplikasi.
               </p>
             </div>
             <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
                 <Calculator className="size-8 text-primary" />
               </div>
-              <h3 className="font-bold text-xl">Alokasi Cerdas</h3>
+              <h3 className="font-bold text-xl">Alokasi Cerdas (Knapsack)</h3>
               <p className="text-base text-muted-foreground leading-relaxed">
-                Input anggaran, pilih program — sistem menghitung alokasi optimal ke kecamatan yang paling membutuhkan.
+                Masukkan anggaran — sistem memilih mustahik dengan skor tertinggi sampai dana habis.
+                Maksimalkan dampak per Rupiah.
               </p>
             </div>
             <div className="text-center space-y-5 p-8 rounded-2xl border bg-background hover:shadow-lg transition-shadow">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <Search className="size-8 text-primary" />
+                <ShieldCheck className="size-8 text-primary" />
               </div>
-              <h3 className="font-bold text-xl">Transparan & Terlacak</h3>
+              <h3 className="font-bold text-xl">Audit Ledger Immutable</h3>
               <p className="text-base text-muted-foreground leading-relaxed">
-                Publik bisa melacak penyaluran per batch layaknya lacak paket. Data lembaga terbuka dan bisa dibandingkan.
+                Setiap pengajuan, persetujuan, dan penyaluran tercatat di ledger yang INSERT-only.
+                Tracking publik anonim per batch.
               </p>
             </div>
           </div>
@@ -226,9 +213,9 @@ export default async function LandingPage() {
           <div className="grid gap-8 md:grid-cols-4 max-w-5xl mx-auto">
             {[
               { step: "1", title: "Daftar", desc: "Registrasi lembaga Anda di platform" },
-              { step: "2", title: "Catat Data", desc: "Masukkan data pengumpulan & penyaluran" },
-              { step: "3", title: "Lihat Rekomendasi", desc: "Sistem merekomendasikan daerah penyaluran" },
-              { step: "4", title: "Tingkatkan Dampak", desc: "Salurkan dana ke penerima yang tepat" },
+              { step: "2", title: "Ajukan Proposal", desc: "Input data mustahik (NIK, asnaf, kondisi)" },
+              { step: "3", title: "Alokasi Cerdas", desc: "Sistem pilih penerima dengan knapsack" },
+              { step: "4", title: "Salurkan & Lacak", desc: "Update status batch — publik bisa lacak" },
             ].map((item, idx) => (
               <div key={item.step} className="relative text-center space-y-4">
                 {idx < 3 && (
@@ -253,8 +240,8 @@ export default async function LandingPage() {
               Siap Mengoptimalkan Penyaluran ZISWAF?
             </h2>
             <p className="text-lg text-muted-foreground mt-4 max-w-xl mx-auto">
-              Bergabung dengan lembaga-lembaga yang sudah terdaftar dan dapatkan
-              rekomendasi penyaluran yang tepat sasaran.
+              Bergabung dengan lembaga-lembaga yang sudah terdaftar dan dapatkan dukungan keputusan
+              berbasis data per individu.
             </p>
             <Link
               href="/register"
@@ -278,13 +265,18 @@ export default async function LandingPage() {
               ZISWAF Hub
             </div>
             <p className="text-sm text-muted-foreground">
-              Platform data ZISWAF nasional. Sumber: BPS, BAZNAS, BWI.
+              Decision support system untuk ekosistem ZISWAF Indonesia.
             </p>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
-              <Link href="/analitik" className="hover:text-foreground">Data Nasional</Link>
-              <Link href="/direktori" className="hover:text-foreground">Direktori</Link>
-              <Link href="/lacak" className="hover:text-foreground">Lacak Donasi</Link>
-              <Link href="/login" className="hover:text-foreground">Masuk</Link>
+              <Link href="/lacak" className="hover:text-foreground">
+                Lacak Penyaluran
+              </Link>
+              <Link href="/login" className="hover:text-foreground">
+                Masuk
+              </Link>
+              <Link href="/register" className="hover:text-foreground">
+                Daftar
+              </Link>
             </nav>
           </div>
         </div>

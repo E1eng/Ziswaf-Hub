@@ -24,7 +24,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -99,9 +99,7 @@ export function AppSidebar() {
           <LogOut className="size-5 mr-2" />
           Keluar
         </Button>
-        <p className="text-xs text-muted-foreground text-center">
-          ZISWAF Hub v0.1.0
-        </p>
+        <p className="text-xs text-muted-foreground text-center">ZISWAF Hub v0.1.0</p>
       </SidebarFooter>
     </Sidebar>
   );

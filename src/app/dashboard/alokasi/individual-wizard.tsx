@@ -22,18 +22,24 @@ import {
 } from "@/components/ui/table";
 import {
   Calculator,
-  Users,
   ChevronRight,
   Loader2,
   CheckCircle,
   Target,
   Send,
   Banknote,
-  AlertTriangle,
   Download,
 } from "lucide-react";
-import { formatRupiah, formatNumber } from "@/lib/utils/format";
+import { formatRupiah } from "@/lib/utils/format";
+import { maskNik } from "@/lib/utils/privacy";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
+import {
+  ASNAF_LABELS,
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY,
+  generateBatchCode,
+} from "@/lib/constants/ziswaf";
 import { toast } from "sonner";
 
 interface SelectedProposal {
@@ -51,22 +57,6 @@ interface KnapsackResult {
   total_beneficiaries: number;
   remaining_budget: number;
   selected: SelectedProposal[];
-}
-
-const ASNAF_LABELS: Record<string, string> = {
-  fakir: "Fakir",
-  miskin: "Miskin",
-  amil: "Amil",
-  mualaf: "Mualaf",
-  riqab: "Riqab",
-  gharimin: "Gharimin",
-  fisabilillah: "Fisabilillah",
-  ibnu_sabil: "Ibnu Sabil",
-};
-
-function maskNik(nik: string): string {
-  if (nik.length < 8) return "****";
-  return nik.slice(0, 4) + "****" + nik.slice(-4);
 }
 
 export function IndividualAllocationWizard() {
@@ -89,7 +79,6 @@ export function IndividualAllocationWizard() {
       const supabase = createClient();
       const budgetNum = parseInt(budget);
 
-      // Fetch all APPROVED proposals sorted by priority_score DESC
       const { data: proposals, error } = await supabase
         .from("mustahik_proposals")
         .select("id, nik, full_name, asnaf_category, priority_score, allocated_amount")
@@ -162,9 +151,9 @@ export function IndividualAllocationWizard() {
     try {
       const supabase = createClient();
       const proposalIds = result.selected.map((s) => s.id);
-      const code = "ZH-" + new Date().getFullYear() + "-" + String(Math.floor(Math.random() * 999999)).padStart(6, "0");
+      const code = generateBatchCode("ZH");
 
-      // Create disbursement batch (starts as PROCESSING, admin progresses status)
+      // Create disbursement batch (starts as PROCESSING; admin progresses status)
       const { data: batchData, error: batchErr } = await supabase
         .from("disbursement_batches")
         .insert({
@@ -204,6 +193,18 @@ export function IndividualAllocationWizard() {
       toast.success("Penyaluran berhasil!", {
         description: `Batch: ${code} — ${result.total_beneficiaries} penerima`,
       });
+      await logAudit(supabase, {
+        action: AUDIT_ACTIONS.BATCH_CREATED,
+        entityType: AUDIT_ENTITY.DISBURSEMENT_BATCH,
+        entityId: batchData.id,
+        payload: {
+          batch_code: code,
+          source: "knapsack",
+          beneficiaries: result.total_beneficiaries,
+          total: result.total_allocated,
+          proposal_ids: proposalIds,
+        },
+      });
       setBatchCode(code);
       setDisbursementDone(true);
       setStep(3);
@@ -218,8 +219,8 @@ export function IndividualAllocationWizard() {
   const exportCSV = useCallback(() => {
     if (!result || !batchCode) return;
     const header = "No,Nama,Asnaf,Skor Prioritas,Dana Dialokasikan (Rp)";
-    const rows = result.selected.map((s, i) =>
-      `${i + 1},"${s.full_name}","${s.asnaf_category}",${s.priority_score},${s.allocated_amount}`
+    const rows = result.selected.map(
+      (s, i) => `${i + 1},"${s.full_name}","${s.asnaf_category}",${s.priority_score},${s.allocated_amount}`
     );
     const footer = `\n"","TOTAL","","",${result.total_allocated}`;
     const csv = [header, ...rows].join("\n") + footer;
@@ -245,9 +246,7 @@ export function IndividualAllocationWizard() {
             {i > 0 && <ChevronRight className="size-4 text-muted-foreground" />}
             <div
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
-                step >= s.num
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+                step >= s.num ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}
             >
               <span className="font-semibold">{s.num}</span>
@@ -266,12 +265,15 @@ export function IndividualAllocationWizard() {
               Target Anggaran Penyaluran
             </CardTitle>
             <CardDescription>
-              Masukkan total anggaran. Sistem akan otomatis memilih individu dengan skor prioritas tertinggi (greedy knapsack).
+              Masukkan total anggaran. Sistem akan otomatis memilih individu dengan skor prioritas tertinggi (greedy
+              knapsack).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="budget" className="text-base">Anggaran (Rupiah)</Label>
+              <Label htmlFor="budget" className="text-base">
+                Anggaran (Rupiah)
+              </Label>
               <Input
                 id="budget"
                 type="number"
@@ -281,18 +283,11 @@ export function IndividualAllocationWizard() {
                 className="text-lg h-12"
               />
               {budget && parseInt(budget) > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  = {formatRupiah(parseInt(budget))}
-                </p>
+                <p className="text-sm text-muted-foreground">= {formatRupiah(parseInt(budget))}</p>
               )}
             </div>
 
-            <Button
-              size="lg"
-              className="gap-2 mt-4"
-              disabled={!canCalculate || loading}
-              onClick={handleCalculate}
-            >
+            <Button size="lg" className="gap-2 mt-4" disabled={!canCalculate || loading} onClick={handleCalculate}>
               {loading ? (
                 <>
                   <Loader2 className="size-5 animate-spin" />
@@ -345,9 +340,15 @@ export function IndividualAllocationWizard() {
             <CardContent className="pt-5">
               <div className="flex items-center gap-3 text-sm">
                 <Target className="size-5 text-primary" />
-                <span>Efisiensi alokasi: <strong>{((result.total_allocated / result.total_budget) * 100).toFixed(1)}%</strong> dari anggaran</span>
+                <span>
+                  Efisiensi alokasi:{" "}
+                  <strong>{((result.total_allocated / result.total_budget) * 100).toFixed(1)}%</strong> dari anggaran
+                </span>
                 <span className="text-muted-foreground">•</span>
-                <span>Rata-rata per penerima: <strong>{formatRupiah(Math.round(result.total_allocated / result.total_beneficiaries))}</strong></span>
+                <span>
+                  Rata-rata per penerima:{" "}
+                  <strong>{formatRupiah(Math.round(result.total_allocated / result.total_beneficiaries))}</strong>
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -381,11 +382,19 @@ export function IndividualAllocationWizard() {
                         <TableCell className="font-medium">{s.full_name}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {ASNAF_LABELS[s.asnaf_category] || s.asnaf_category}
+                            {ASNAF_LABELS[s.asnaf_category as keyof typeof ASNAF_LABELS] ?? s.asnaf_category}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className={`font-bold ${s.priority_score >= 60 ? "text-red-600" : s.priority_score >= 40 ? "text-amber-600" : "text-green-600"}`}>
+                          <span
+                            className={`font-bold ${
+                              s.priority_score >= 60
+                                ? "text-red-600"
+                                : s.priority_score >= 40
+                                ? "text-amber-600"
+                                : "text-green-600"
+                            }`}
+                          >
                             {s.priority_score}
                           </span>
                         </TableCell>
@@ -400,15 +409,16 @@ export function IndividualAllocationWizard() {
 
           {/* Actions */}
           <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => { setStep(1); setResult(null); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStep(1);
+                setResult(null);
+              }}
+            >
               ← Ubah Anggaran
             </Button>
-            <Button
-              size="lg"
-              className="gap-2"
-              disabled={disbursing || disbursementDone}
-              onClick={handleDisburse}
-            >
+            <Button size="lg" className="gap-2" disabled={disbursing || disbursementDone} onClick={handleDisburse}>
               {disbursing ? (
                 <>
                   <Loader2 className="size-5 animate-spin" />
@@ -417,7 +427,7 @@ export function IndividualAllocationWizard() {
               ) : (
                 <>
                   <Send className="size-5" />
-                  Setujui & Salurkan Dana
+                  Setujui &amp; Salurkan Dana
                 </>
               )}
             </Button>
@@ -448,7 +458,15 @@ export function IndividualAllocationWizard() {
                 <Download className="size-4" />
                 Download CSV
               </Button>
-              <Button variant="outline" onClick={() => { setStep(1); setResult(null); setDisbursementDone(false); setBatchCode(null); }}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStep(1);
+                  setResult(null);
+                  setDisbursementDone(false);
+                  setBatchCode(null);
+                }}
+              >
                 Buat Alokasi Baru
               </Button>
             </div>

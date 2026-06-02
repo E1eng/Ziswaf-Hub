@@ -447,56 +447,43 @@ export type Database = {
       audit_ledger: {
         Row: {
           id: string
-          institution_id: string
-          transaction_type: string
-          fund_type: string
-          amount: number
-          description: string | null
-          reference_id: string | null
+          action: string
+          entity_type: string
+          entity_id: string | null
+          actor_id: string | null
+          payload: Json
           created_at: string
         }
         Insert: {
           id?: string
-          institution_id: string
-          transaction_type: string
-          fund_type: string
-          amount: number
-          description?: string | null
-          reference_id?: string | null
+          action: string
+          entity_type: string
+          entity_id?: string | null
+          actor_id?: string | null
+          payload?: Json
           created_at?: string
         }
         Update: {
           id?: string
-          institution_id?: string
-          transaction_type?: string
-          fund_type?: string
-          amount?: number
-          description?: string | null
-          reference_id?: string | null
+          action?: string
+          entity_type?: string
+          entity_id?: string | null
+          actor_id?: string | null
+          payload?: Json
           created_at?: string
         }
         Relationships: []
       }
     }
     Views: {
-      mv_collection_by_region_year: {
-        Row: Record<string, any>
-        Relationships: []
-      }
-      mv_distribution_by_region_year: {
-        Row: Record<string, any>
-        Relationships: []
-      }
-      mv_gap_analysis: {
-        Row: Record<string, any>
-        Relationships: []
-      }
-      mv_wakaf_summary_by_province: {
-        Row: Record<string, any>
-        Relationships: []
+      [_ in never]: never
+    }
+    Functions: {
+      calculate_priority_score: {
+        Args: { p_proposal_id: string }
+        Returns: number
       }
     }
-    Functions: Record<string, never>
     Enums: {
       [_ in never]: never
     }
