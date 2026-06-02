@@ -69,7 +69,6 @@ export function AppSidebar() {
           </div>
           <div>
             <p className="text-base font-bold">ZISWAF Hub</p>
-            <p className="text-sm text-muted-foreground">Platform Analitik</p>
           </div>
         </div>
       </SidebarHeader>

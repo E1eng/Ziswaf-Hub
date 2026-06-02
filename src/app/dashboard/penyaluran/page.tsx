@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -39,6 +39,9 @@ import {
 } from "@/lib/constants/ziswaf";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+
+const PAGE_SIZE = 10;
 
 interface Batch {
   id: string;
@@ -70,6 +73,8 @@ export default function PenyaluranPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<BatchStatus | "ALL">("ALL");
 
   const fetchBatches = useCallback(async () => {
     const supabase = createClient();
@@ -127,6 +132,21 @@ export default function PenyaluranPage() {
     RECEIVED: batches.filter((b) => b.status === "RECEIVED").length,
   };
 
+  const filtered = useMemo(() => {
+    if (statusFilter === "ALL") return batches;
+    return batches.filter((b) => b.status === statusFilter);
+  }, [batches, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const sliceStart = (safePage - 1) * PAGE_SIZE;
+  const visible = filtered.slice(sliceStart, sliceStart + PAGE_SIZE);
+
+  function setFilter(s: BatchStatus | "ALL") {
+    setStatusFilter(s);
+    setPage(1);
+  }
+
   return (
     <div className="flex flex-col">
       <PageHeader
@@ -140,18 +160,28 @@ export default function PenyaluranPage() {
           {BATCH_STATUS_FLOW.map((s) => {
             const cfg = BATCH_STATUS[s];
             const Icon = cfg.icon;
+            const isActive = statusFilter === s;
             return (
-              <Card key={s}>
-                <CardContent className="pt-5 flex items-center gap-4">
-                  <div className={`p-3 rounded-xl ${cfg.color}`}>
-                    <Icon className="size-5" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{stats[s]}</p>
-                    <p className="text-sm text-muted-foreground">{cfg.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <button
+                key={s}
+                type="button"
+                onClick={() => setFilter(isActive ? "ALL" : s)}
+                className={`text-left rounded-xl transition-colors ${
+                  isActive ? "ring-2 ring-primary" : ""
+                }`}
+              >
+                <Card className={isActive ? "border-primary" : ""}>
+                  <CardContent className="pt-5 flex items-center gap-4">
+                    <div className={`p-3 rounded-xl ${cfg.color}`}>
+                      <Icon className="size-5" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats[s]}</p>
+                      <p className="text-sm text-muted-foreground">{cfg.label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </button>
             );
           })}
         </div>
@@ -159,82 +189,105 @@ export default function PenyaluranPage() {
         {/* Batch table */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Semua Batch</CardTitle>
-            <CardDescription>Klik tombol untuk memajukan status ke tahap berikutnya</CardDescription>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <CardTitle className="text-lg">Semua Batch</CardTitle>
+                <CardDescription>
+                  {statusFilter === "ALL"
+                    ? "Klik tombol untuk memajukan status ke tahap berikutnya"
+                    : `Menampilkan batch dengan status ${BATCH_STATUS[statusFilter].label}`}
+                </CardDescription>
+              </div>
+              {statusFilter !== "ALL" && (
+                <Button size="sm" variant="ghost" onClick={() => setFilter("ALL")}>
+                  Tampilkan Semua
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="size-8 animate-spin text-muted-foreground" />
               </div>
-            ) : batches.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Package className="size-12 mx-auto mb-3 opacity-30" />
-                <p>Belum ada batch penyaluran</p>
-                <p className="text-sm">Buat batch via halaman Alokasi Cerdas atau Detail Program</p>
+                <p>{batches.length === 0 ? "Belum ada batch penyaluran" : "Tidak ada batch dengan filter ini"}</p>
+                {batches.length === 0 && (
+                  <p className="text-sm">Buat batch via halaman Alokasi Cerdas atau Detail Program</p>
+                )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Kode Batch</TableHead>
-                      <TableHead>Jenis Dana</TableHead>
-                      <TableHead>Jumlah</TableHead>
-                      <TableHead>Penerima</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Dibuat</TableHead>
-                      <TableHead>Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {batches.map((b) => {
-                      const cfg = BATCH_STATUS[b.status as BatchStatus] ?? BATCH_STATUS.PROCESSING;
-                      const next = nextBatchStatus(b.status);
-                      const nextCfg = next ? BATCH_STATUS[next] : null;
-                      return (
-                        <TableRow key={b.id}>
-                          <TableCell className="font-mono font-bold">{b.batch_code}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">{fundLabel(b.fund_type)}</Badge>
-                          </TableCell>
-                          <TableCell>{formatRupiah(b.total_amount)}</TableCell>
-                          <TableCell>{b.beneficiary_count} mustahik</TableCell>
-                          <TableCell>
-                            <Badge className={cfg.color}>{cfg.label}</Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{formatDate(b.created_at)}</TableCell>
-                          <TableCell>
-                            {next && nextCfg ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="gap-1.5"
-                                disabled={updating === b.id}
-                                onClick={() => handleAdvanceStatus(b)}
-                              >
-                                {updating === b.id ? (
-                                  <Loader2 className="size-4 animate-spin" />
-                                ) : (
-                                  <>
-                                    <ArrowRight className="size-3" />
-                                    {nextCfg.label}
-                                  </>
-                                )}
-                              </Button>
-                            ) : (
-                              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                <CheckCircle className="size-4 text-green-600" />
-                                Selesai
-                              </span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Kode Batch</TableHead>
+                        <TableHead>Jenis Dana</TableHead>
+                        <TableHead>Jumlah</TableHead>
+                        <TableHead>Penerima</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Dibuat</TableHead>
+                        <TableHead>Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visible.map((b) => {
+                        const cfg = BATCH_STATUS[b.status as BatchStatus] ?? BATCH_STATUS.PROCESSING;
+                        const next = nextBatchStatus(b.status);
+                        const nextCfg = next ? BATCH_STATUS[next] : null;
+                        return (
+                          <TableRow key={b.id}>
+                            <TableCell className="font-mono font-bold">{b.batch_code}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{fundLabel(b.fund_type)}</Badge>
+                            </TableCell>
+                            <TableCell>{formatRupiah(b.total_amount)}</TableCell>
+                            <TableCell>{b.beneficiary_count} mustahik</TableCell>
+                            <TableCell>
+                              <Badge className={cfg.color}>{cfg.label}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{formatDate(b.created_at)}</TableCell>
+                            <TableCell>
+                              {next && nextCfg ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1.5"
+                                  disabled={updating === b.id}
+                                  onClick={() => handleAdvanceStatus(b)}
+                                >
+                                  {updating === b.id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <ArrowRight className="size-3" />
+                                      {nextCfg.label}
+                                    </>
+                                  )}
+                                </Button>
+                              ) : (
+                                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                  <CheckCircle className="size-4 text-green-600" />
+                                  Selesai
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                <PaginationBar
+                  page={safePage}
+                  pageSize={PAGE_SIZE}
+                  totalItems={filtered.length}
+                  onPageChange={setPage}
+                />
+              </>
             )}
           </CardContent>
         </Card>

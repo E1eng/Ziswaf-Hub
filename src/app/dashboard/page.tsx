@@ -21,6 +21,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentInstitution } from "@/lib/institution";
 import { formatRupiah, formatNumber } from "@/lib/utils/format";
 import { fundLabel, FUND_TYPES, type FundType } from "@/lib/constants/ziswaf";
+import { DonationTrendChart } from "@/components/charts/donation-trend";
+import { FundBreakdownChart } from "@/components/charts/fund-breakdown";
 
 async function getDashboardData(institutionId: string) {
   const supabase = await createClient();
@@ -31,6 +33,7 @@ async function getDashboardData(institutionId: string) {
     { data: pool },
     { data: programs },
     { data: recentDonations },
+    { data: donationTrendRaw },
   ] = await Promise.all([
     supabase
       .from("mustahik_assessments")
@@ -54,6 +57,12 @@ async function getDashboardData(institutionId: string) {
       .eq("institution_id", institutionId)
       .order("received_at", { ascending: false })
       .limit(5),
+    supabase
+      .from("donations")
+      .select("amount, received_at")
+      .eq("institution_id", institutionId)
+      .gte("received_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order("received_at", { ascending: true }),
   ]);
 
   const aRows = assessments ?? [];
@@ -90,6 +99,38 @@ async function getDashboardData(institutionId: string) {
     }
   }
 
+  // Trend 30 hari: bucket per hari
+  const trendBuckets = new Map<string, { amount: number; count: number }>();
+  const dayMs = 24 * 60 * 60 * 1000;
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * dayMs);
+    const key = d.toISOString().slice(0, 10);
+    trendBuckets.set(key, { amount: 0, count: 0 });
+  }
+  for (const d of donationTrendRaw ?? []) {
+    if (!d.received_at) continue;
+    const key = d.received_at.slice(0, 10);
+    const cur = trendBuckets.get(key);
+    if (cur) {
+      cur.amount += Number(d.amount ?? 0);
+      cur.count += 1;
+    }
+  }
+  const donationTrend = Array.from(trendBuckets.entries()).map(([key, v]) => {
+    const d = new Date(key);
+    return {
+      date: d.toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+      amount: v.amount,
+      count: v.count,
+    };
+  });
+
+  // Fund breakdown for pie
+  const fundBreakdown = FUND_TYPES.map((ft) => ({
+    fundType: ft,
+    donated: poolByFund[ft].donated,
+  }));
+
   return {
     pendingAssess,
     approvedAssess,
@@ -102,6 +143,8 @@ async function getDashboardData(institutionId: string) {
     totalPrograms,
     poolByFund,
     recentDonations: recentDonations ?? [],
+    donationTrend,
+    fundBreakdown,
   };
 }
 
@@ -208,6 +251,28 @@ export default async function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">{d.activePrograms}</div>
               <p className="text-xs text-muted-foreground mt-1">dari {d.totalPrograms} total program</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts row */}
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base">Tren Donasi 30 Hari Terakhir</CardTitle>
+              <CardDescription>Jumlah donasi masuk per hari</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DonationTrendChart data={d.donationTrend} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Distribusi Pool</CardTitle>
+              <CardDescription>Komposisi terkumpul per jenis dana</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FundBreakdownChart data={d.fundBreakdown} />
             </CardContent>
           </Card>
         </div>

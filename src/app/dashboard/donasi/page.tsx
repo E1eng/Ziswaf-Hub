@@ -1,12 +1,12 @@
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentInstitution } from "@/lib/institution";
 import { formatRupiah } from "@/lib/utils/format";
 import { fundLabel, FUND_TYPES, type FundType } from "@/lib/constants/ziswaf";
 import { DonationForm } from "./donation-form";
-import { ArrowDownToLine, Mail, AlertCircle } from "lucide-react";
+import { RecentDonationsTable } from "./recent-donations-table";
+import { ArrowDownToLine, AlertCircle } from "lucide-react";
 
 interface PoolRow {
   fund_type: FundType;
@@ -43,7 +43,7 @@ async function getDonationPageData(institutionId: string) {
       .select("id, donation_code, amount, fund_type, donor_name, donor_email, is_anonymous, channel, email_sent_at, email_error, received_at")
       .eq("institution_id", institutionId)
       .order("received_at", { ascending: false })
-      .limit(20),
+      .limit(200),
   ]);
 
   // Build pool dict keyed by fund_type
@@ -74,17 +74,6 @@ async function getDonationPageData(institutionId: string) {
 
 function zeroPool(fund: FundType): PoolRow {
   return { fund_type: fund, total_donated: 0, total_disbursed: 0, balance: 0, disbursement_pct: 0 };
-}
-
-function formatDate(s: string | null): string {
-  if (!s) return "-";
-  return new Date(s).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default async function DonasiPage() {
@@ -204,63 +193,14 @@ export default async function DonasiPage() {
                 <ArrowDownToLine className="size-5" />
                 Donasi Terbaru
               </CardTitle>
-              <CardDescription>20 donasi terakhir lembaga Anda</CardDescription>
+              <CardDescription>
+                {data.recentDonations.length === 0
+                  ? "Belum ada riwayat"
+                  : `${data.recentDonations.length} donasi terakhir lembaga Anda · search & paginated`}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              {data.recentDonations.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">
-                  Belum ada donasi tercatat. Gunakan form di kiri untuk mencatat donasi pertama.
-                </p>
-              ) : (
-                <div className="overflow-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-xs uppercase text-muted-foreground border-b">
-                      <tr>
-                        <th className="text-left py-2 px-2">Kode</th>
-                        <th className="text-left py-2 px-2">Donor</th>
-                        <th className="text-left py-2 px-2">Jenis</th>
-                        <th className="text-right py-2 px-2">Jumlah</th>
-                        <th className="text-center py-2 px-2">Email</th>
-                        <th className="text-left py-2 px-2">Waktu</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.recentDonations.map((d) => (
-                        <tr key={d.id} className="border-b last:border-0">
-                          <td className="py-2 px-2 font-mono text-xs">{d.donation_code}</td>
-                          <td className="py-2 px-2">
-                            {d.is_anonymous ? (
-                              <span className="text-muted-foreground italic">Anonim</span>
-                            ) : (
-                              d.donor_name ?? <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-2">
-                            <Badge variant="outline" className="text-xs">{fundLabel(d.fund_type)}</Badge>
-                          </td>
-                          <td className="py-2 px-2 text-right font-medium">{formatRupiah(d.amount)}</td>
-                          <td className="py-2 px-2 text-center">
-                            {!d.donor_email ? (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            ) : d.email_sent_at ? (
-                              <Badge variant="secondary" className="text-xs gap-1">
-                                <Mail className="size-3" /> Terkirim
-                              </Badge>
-                            ) : d.email_error ? (
-                              <Badge variant="destructive" className="text-xs">Gagal</Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">Pending</Badge>
-                            )}
-                          </td>
-                          <td className="py-2 px-2 text-xs text-muted-foreground">
-                            {formatDate(d.received_at)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <RecentDonationsTable donations={data.recentDonations} />
             </CardContent>
           </Card>
         </div>

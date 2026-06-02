@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useTransition } from "react";
+import { useState, useEffect, useCallback, useMemo, useTransition } from "react";
 import {
   Card,
   CardContent,
@@ -39,7 +39,11 @@ import {
   type AssessmentStatus,
 } from "@/lib/constants/ziswaf";
 import { toast } from "sonner";
+import Link from "next/link";
 import { AssessmentForm } from "./assessment-form";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+
+const PAGE_SIZE = 25;
 
 interface Assessment {
   id: string;
@@ -68,6 +72,7 @@ export function ProposalDashboard({ institutionId, institutionName }: Props) {
   const [pending, startTransition] = useTransition();
   const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, total: 0 });
   const [showForm, setShowForm] = useState(false);
+  const [page, setPage] = useState(1);
 
   const fetchAssessments = useCallback(async () => {
     setLoading(true);
@@ -124,6 +129,20 @@ export function ProposalDashboard({ institutionId, institutionName }: Props) {
     fetchAssessments();
     fetchStats();
   }, [fetchAssessments, fetchStats]);
+
+  // Reset to first page on filter or search change
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset on dependency change
+    setPage(1);
+  }, [filter, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(assessments.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const sliceStart = (safePage - 1) * PAGE_SIZE;
+  const visible = useMemo(
+    () => assessments.slice(sliceStart, sliceStart + PAGE_SIZE),
+    [assessments, sliceStart]
+  );
 
   // Realtime: re-fetch saat ada insert baru (dari Telegram bot misalnya)
   useEffect(() => {
@@ -308,13 +327,25 @@ export function ProposalDashboard({ institutionId, institutionName }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {assessments.map((a, idx) => {
+                  {visible.map((a, idx) => {
+                    const realIdx = sliceStart + idx;
                     const st = ASSESSMENT_STATUS[a.status as AssessmentStatus] ?? ASSESSMENT_STATUS.PENDING;
                     return (
                       <tr key={a.id} className="border-b last:border-0">
-                        <td className="p-2 text-muted-foreground">{idx + 1}</td>
+                        <td className="p-2 text-muted-foreground">{realIdx + 1}</td>
                         <td className="p-2 font-mono text-xs">{maskNik(a.mustahik?.nik ?? "")}</td>
-                        <td className="p-2 font-medium">{a.mustahik?.full_name ?? "—"}</td>
+                        <td className="p-2 font-medium">
+                          {a.mustahik_id ? (
+                            <Link
+                              href={`/dashboard/mustahik/${a.mustahik_id}`}
+                              className="hover:text-primary hover:underline"
+                            >
+                              {a.mustahik?.full_name ?? "—"}
+                            </Link>
+                          ) : (
+                            a.mustahik?.full_name ?? "—"
+                          )}
+                        </td>
                         <td className="p-2">
                           <Badge variant="outline" className="text-xs">{asnafLabel(a.asnaf_category)}</Badge>
                         </td>
@@ -369,6 +400,12 @@ export function ProposalDashboard({ institutionId, institutionName }: Props) {
                   })}
                 </tbody>
               </table>
+              <PaginationBar
+                page={safePage}
+                pageSize={PAGE_SIZE}
+                totalItems={assessments.length}
+                onPageChange={setPage}
+              />
             </div>
           )}
         </CardContent>

@@ -113,7 +113,15 @@ export default async function ProgramDetailPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col">
-      <PageHeader title={program.name} description={`Detail program — ${ctx.institutionName}`}>
+      <PageHeader
+        title={program.name}
+        description={`Detail program — ${ctx.institutionName}`}
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Program", href: "/dashboard/program" },
+          { label: program.name },
+        ]}
+      >
         <Link href="/dashboard/program" className={buttonVariants({ variant: "outline", size: "sm" })}>
           <ArrowLeft className="size-4 mr-2" />
           Daftar Program

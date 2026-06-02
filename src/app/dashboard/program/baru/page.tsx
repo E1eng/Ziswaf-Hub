@@ -34,6 +34,11 @@ export default async function NewProgramPage() {
       <PageHeader
         title="Buat Program Baru"
         description={`Setup program untuk ${ctx.institutionName}`}
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Program", href: "/dashboard/program" },
+          { label: "Buat Baru" },
+        ]}
       />
       <main className="flex-1 p-6 lg:p-8 max-w-3xl">
         <ProgramForm institutionId={ctx.institutionId} />

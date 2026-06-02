@@ -1,0 +1,15 @@
+{
+  "name": "ziswafhub-bot",
+  "version": "0.1.0",
+  "description": "Telegram bot worker untuk ZISWAF Hub — field worker activation & assessment submission",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "grammy": "^1.30.0",
+    "dotenv": "^16.4.5"
+  }
+}
