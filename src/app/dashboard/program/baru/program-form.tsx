@@ -27,6 +27,7 @@ import {
   FUND_TYPE_CONFIG,
   ASSISTANCE_TYPES,
   ASSISTANCE_TYPE_LABELS,
+  ASSISTANCE_DEFAULT_AMOUNT,
   ASNAF_KEYS,
   asnafLabel,
   validAsnafForFund,
@@ -57,6 +58,11 @@ export function ProgramForm({ institutionId }: Props) {
   const [description, setDescription] = useState("");
   const [fundType, setFundType] = useState<FundType>("zakat");
   const [assistanceType, setAssistanceType] = useState<AssistanceType>("sembako");
+  const [amountPerBeneficiary, setAmountPerBeneficiary] = useState(
+    String(ASSISTANCE_DEFAULT_AMOUNT.sembako)
+  );
+  // Kalau user belum mengubah nominal manual, ikuti default jenis bantuan.
+  const [amountTouched, setAmountTouched] = useState(false);
   const [programType, setProgramType] = useState<ProgramType>("RUTIN");
   const [targetAsnaf, setTargetAsnaf] = useState<AsnafKey[]>(["fakir", "miskin"]);
   const [budget, setBudget] = useState("");
@@ -86,14 +92,25 @@ export function ProgramForm({ institutionId }: Props) {
   };
 
   const numBudget = Number(budget) || 0;
+  const numAmountPer = Number(amountPerBeneficiary) || 0;
+  const estimatedReach = numAmountPer > 0 ? Math.floor(numBudget / numAmountPer) : 0;
   const canSubmit =
     name.trim().length > 0 &&
     !isWakaf &&
     targetAsnaf.length > 0 &&
     numBudget > 0 &&
+    numAmountPer > 0 &&
     periodStart &&
     periodEnd &&
     new Date(periodEnd) >= new Date(periodStart);
+
+  // Ganti jenis bantuan → auto-update nominal default (kecuali user sudah edit manual)
+  const handleAssistanceChange = (v: AssistanceType) => {
+    setAssistanceType(v);
+    if (!amountTouched) {
+      setAmountPerBeneficiary(String(ASSISTANCE_DEFAULT_AMOUNT[v]));
+    }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -106,6 +123,7 @@ export function ProgramForm({ institutionId }: Props) {
         description: description || undefined,
         fundType,
         assistanceType,
+        amountPerBeneficiary: numAmountPer,
         targetAsnaf,
         budget: numBudget,
         periodStart,
@@ -182,7 +200,7 @@ export function ProgramForm({ institutionId }: Props) {
                 <Label>
                   Jenis Bantuan <span className="text-destructive">*</span>
                 </Label>
-                <Select value={assistanceType} onValueChange={(v) => v && setAssistanceType(v as AssistanceType)}>
+                <Select value={assistanceType} onValueChange={(v) => v && handleAssistanceChange(v as AssistanceType)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -302,6 +320,30 @@ export function ProgramForm({ institutionId }: Props) {
               </div>
 
               <div className="space-y-1.5">
+                <Label htmlFor="amount-per">
+                  Nominal per Penerima (Rp) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="amount-per"
+                  type="number"
+                  min="1"
+                  value={amountPerBeneficiary}
+                  onChange={(e) => {
+                    setAmountTouched(true);
+                    setAmountPerBeneficiary(e.target.value);
+                  }}
+                  placeholder="200000"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Standar bantuan {ASSISTANCE_TYPE_LABELS[assistanceType].toLowerCase()} per orang.
+                  {numAmountPer > 0 && ` ${formatRupiah(numAmountPer)}.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="target">Target Penerima (opsional)</Label>
                 <Input
                   id="target"
@@ -312,6 +354,17 @@ export function ProgramForm({ institutionId }: Props) {
                   placeholder="100"
                 />
               </div>
+              {numBudget > 0 && numAmountPer > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Estimasi Jangkauan</Label>
+                  <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                    ± <strong>{estimatedReach.toLocaleString("id-ID")}</strong> penerima
+                    <span className="text-muted-foreground">
+                      {" "}({formatRupiah(numBudget)} ÷ {formatRupiah(numAmountPer)})
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

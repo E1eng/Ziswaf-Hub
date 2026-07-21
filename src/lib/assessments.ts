@@ -7,6 +7,7 @@ import {
   AUDIT_ENTITY,
   type AsnafKey,
 } from "@/lib/constants/ziswaf";
+import { estimateAssistanceAmount } from "@/lib/estimate";
 
 export interface QuickAssessmentInput {
   institutionId: string;
@@ -20,6 +21,7 @@ export interface QuickAssessmentInput {
   monthlyIncome: number;
   dependents: number;
   housing: "owned" | "rental" | "family" | "homeless";
+  isOrphan?: boolean;
   estimatedAmount?: number;
   notes?: string;
 }
@@ -107,8 +109,18 @@ export async function quickCreateAssessment(
         monthly_income: input.monthlyIncome,
         dependents: input.dependents,
         housing: input.housing,
+        is_orphan: input.isOrphan ?? false,
       },
-      estimated_amount: input.estimatedAmount ?? 0,
+      estimated_amount:
+        input.estimatedAmount && input.estimatedAmount > 0
+          ? input.estimatedAmount
+          : estimateAssistanceAmount({
+              asnaf: input.asnafCategory,
+              monthlyIncome: input.monthlyIncome,
+              dependents: input.dependents,
+              housing: input.housing,
+              isOrphan: input.isOrphan,
+            }),
       source: "MANUAL",
       status: "PENDING",
     })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { estimateAssistanceAmount } from "@/lib/estimate";
 
 /**
  * Telegram webhook — submit assessment dari field worker via bot @ziswafhub_bot.
@@ -45,6 +46,7 @@ interface TelegramPayload {
     monthly_income?: number;
     dependents?: number;
     housing?: string;
+    is_orphan?: boolean;
   };
 }
 
@@ -52,22 +54,6 @@ const VALID_ASNAF = new Set([
   "fakir", "miskin", "amil", "mualaf",
   "riqab", "gharimin", "fisabilillah", "ibnu_sabil",
 ]);
-
-function estimateAmount(asnaf: string, dependents: number): number {
-  const baseAmounts: Record<string, number> = {
-    fakir: 2_500_000,
-    miskin: 2_000_000,
-    gharimin: 1_500_000,
-    ibnu_sabil: 1_200_000,
-    mualaf: 1_000_000,
-    fisabilillah: 800_000,
-    riqab: 800_000,
-    amil: 500_000,
-  };
-  const base = baseAmounts[asnaf] ?? 1_000_000;
-  const safeDeps = Math.max(0, dependents);
-  return base + Math.max(0, safeDeps - 1) * 300_000;
-}
 
 export async function POST(request: NextRequest) {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
@@ -151,7 +137,13 @@ export async function POST(request: NextRequest) {
 
   // 3. Create assessment (one active per institution per mustahik — enforced by partial index)
   const metrics = body.metrics ?? {};
-  const estimatedAmount = estimateAmount(body.asnaf_category, metrics.dependents ?? 1);
+  const estimatedAmount = estimateAssistanceAmount({
+    asnaf: body.asnaf_category,
+    monthlyIncome: metrics.monthly_income ?? 0,
+    dependents: metrics.dependents ?? 1,
+    housing: metrics.housing ?? "unknown",
+    isOrphan: metrics.is_orphan ?? false,
+  });
 
   const { data: assess, error: aErr } = await supabase
     .from("mustahik_assessments")

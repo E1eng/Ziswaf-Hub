@@ -16,6 +16,7 @@ export interface CreateProgramInput {
   description?: string;
   fundType: FundType;
   assistanceType: AssistanceType;
+  amountPerBeneficiary: number;
   targetAsnaf: AsnafKey[];
   sector?: string;
   budget: number;
@@ -39,6 +40,9 @@ export async function createProgram(input: CreateProgramInput): Promise<CreatePr
   // Client-side validation guards (DB CHECK constraint juga akan reject)
   if (!input.name.trim()) return { success: false, error: "Nama program wajib diisi" };
   if (input.budget <= 0) return { success: false, error: "Anggaran harus lebih dari 0" };
+  if (input.amountPerBeneficiary <= 0) {
+    return { success: false, error: "Nominal per penerima harus lebih dari 0" };
+  }
   if (input.targetAsnaf.length === 0) {
     return { success: false, error: "Pilih minimal satu kategori asnaf target" };
   }
@@ -60,6 +64,7 @@ export async function createProgram(input: CreateProgramInput): Promise<CreatePr
       description: input.description?.trim() || null,
       fund_type: input.fundType,
       assistance_type: input.assistanceType,
+      amount_per_beneficiary: input.amountPerBeneficiary,
       target_asnaf: input.targetAsnaf,
       sector: input.sector?.trim() || null,
       budget: input.budget,

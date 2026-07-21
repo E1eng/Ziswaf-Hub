@@ -26,6 +26,7 @@ import {
   HOUSING_OPTIONS,
   type AsnafKey,
 } from "@/lib/constants/ziswaf";
+import { estimateAssistanceAmount } from "@/lib/estimate";
 import { formatRupiah } from "@/lib/utils/format";
 import { toast } from "sonner";
 
@@ -45,6 +46,7 @@ export function AssessmentForm({ institutionId, onSuccess, onCancel }: Props) {
   const [income, setIncome] = useState("");
   const [dependents, setDependents] = useState("");
   const [housing, setHousing] = useState("rental");
+  const [isOrphan, setIsOrphan] = useState(false);
   const [estimatedAmount, setEstimatedAmount] = useState("");
 
   const numIncome = Number(income) || 0;
@@ -52,20 +54,17 @@ export function AssessmentForm({ institutionId, onSuccess, onCancel }: Props) {
   const numAmount = Number(estimatedAmount) || 0;
   const canSubmit = nik.length === 16 && fullName.trim().length > 0 && asnaf;
 
-  // Quick estimate berdasarkan asnaf & dependents (mirror logic Telegram webhook)
+  // Estimasi berbasis shortfall (pendapatan vs kebutuhan hidup layak).
+  // Terpusat di lib/estimate.ts — memperhitungkan pendapatan, tanggungan,
+  // tempat tinggal, asnaf, dan status yatim.
   const suggestEstimate = () => {
-    const baseAmounts: Record<string, number> = {
-      fakir: 2_500_000,
-      miskin: 2_000_000,
-      gharimin: 1_500_000,
-      ibnu_sabil: 1_200_000,
-      mualaf: 1_000_000,
-      fisabilillah: 800_000,
-      riqab: 800_000,
-      amil: 500_000,
-    };
-    const base = baseAmounts[asnaf] ?? 1_000_000;
-    const total = base + Math.max(0, numDependents - 1) * 300_000;
+    const total = estimateAssistanceAmount({
+      asnaf,
+      monthlyIncome: numIncome,
+      dependents: numDependents,
+      housing,
+      isOrphan,
+    });
     setEstimatedAmount(String(total));
     toast.success("Estimasi terisi otomatis", { description: formatRupiah(total) });
   };
@@ -84,6 +83,7 @@ export function AssessmentForm({ institutionId, onSuccess, onCancel }: Props) {
         monthlyIncome: numIncome,
         dependents: numDependents,
         housing: housing as "owned" | "rental" | "family" | "homeless",
+        isOrphan,
         estimatedAmount: numAmount,
       });
 
@@ -212,6 +212,16 @@ export function AssessmentForm({ institutionId, onSuccess, onCancel }: Props) {
               </Select>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isOrphan}
+              onChange={(e) => setIsOrphan(e.target.checked)}
+              className="size-4 rounded border-border"
+            />
+            <span>Anak yatim/piatu (menambah bobot prioritas &amp; estimasi kebutuhan)</span>
+          </label>
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">

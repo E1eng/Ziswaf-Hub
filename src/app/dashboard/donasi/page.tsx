@@ -5,6 +5,7 @@ import { getCurrentInstitution } from "@/lib/institution";
 import { formatRupiah } from "@/lib/utils/format";
 import { fundLabel, FUND_TYPES, type FundType } from "@/lib/constants/ziswaf";
 import { DonationForm } from "./donation-form";
+import { BulkImportDonations } from "./bulk-import";
 import { RecentDonationsTable } from "./recent-donations-table";
 import { ArrowDownToLine, AlertCircle } from "lucide-react";
 
@@ -183,8 +184,9 @@ export default async function DonasiPage() {
 
         {/* Form + recent */}
         <div className="grid gap-6 lg:grid-cols-5">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <DonationForm institutionId={ctx.institutionId} />
+            <BulkImportDonations institutionId={ctx.institutionId} />
           </div>
 
           <Card className="lg:col-span-3">

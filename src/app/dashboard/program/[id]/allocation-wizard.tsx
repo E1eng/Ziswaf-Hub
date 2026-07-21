@@ -39,6 +39,7 @@ interface Props {
   programName: string;
   fundType: string;
   assistanceType: string;
+  amountPerBeneficiary: number;
   remainingBudget: number;
   poolBalance: number;
   initialCandidates: AllocationCandidate[];
@@ -58,12 +59,19 @@ export function AllocationWizard({
   programName,
   fundType,
   assistanceType,
+  amountPerBeneficiary,
   remainingBudget,
   poolBalance,
   initialCandidates,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  // Nominal per penerima = ditentukan program (mis. sembako 200rb), bukan
+  // estimasi kebutuhan hidup mustahik. Fallback ke estimasi assessment kalau
+  // program lama belum punya amount_per_beneficiary.
+  const perBeneficiary = (c: AllocationCandidate) =>
+    amountPerBeneficiary > 0 ? amountPerBeneficiary : c.estimatedAmount;
 
   // Effective budget = min(remaining program budget, pool balance)
   const effectiveBudget = Math.min(remainingBudget, poolBalance);
@@ -86,13 +94,14 @@ export function AllocationWizard({
 
     for (const c of initialCandidates) {
       if (c.duplicates.length > 0 && hideDups) continue;
-      if (c.estimatedAmount <= 0) continue;
-      if (total + c.estimatedAmount <= budgetNum) {
+      const amt = perBeneficiary(c);
+      if (amt <= 0) continue;
+      if (total + amt <= budgetNum) {
         newSelections[c.assessmentId] = {
           selected: true,
-          customAmount: c.estimatedAmount,
+          customAmount: amt,
         };
-        total += c.estimatedAmount;
+        total += amt;
       }
     }
 
@@ -119,7 +128,7 @@ export function AllocationWizard({
         ...prev,
         [c.assessmentId]: {
           selected: true,
-          customAmount: c.estimatedAmount,
+          customAmount: perBeneficiary(c),
           duplicateOverride: c.duplicates.length > 0 ? cur?.duplicateOverride ?? false : false,
           duplicateReason: cur?.duplicateReason,
         },
@@ -155,7 +164,7 @@ export function AllocationWizard({
       .filter((c) => selections[c.assessmentId]?.selected)
       .map((c) => ({
         candidate: c,
-        amount: selections[c.assessmentId].customAmount ?? c.estimatedAmount,
+        amount: selections[c.assessmentId].customAmount ?? perBeneficiary(c),
         override: selections[c.assessmentId].duplicateOverride ?? false,
         reason: selections[c.assessmentId].duplicateReason,
       }));
@@ -221,6 +230,9 @@ export function AllocationWizard({
         </CardTitle>
         <CardDescription>
           {programName} · {fundLabel(fundType)} · {ASSISTANCE_TYPE_LABELS[assistanceType as AssistanceType] ?? assistanceType}
+          {amountPerBeneficiary > 0 && (
+            <> · standar {formatRupiah(amountPerBeneficiary)}/penerima</>
+          )}
         </CardDescription>
       </CardHeader>
 
@@ -325,7 +337,7 @@ export function AllocationWizard({
                     <th className="text-left p-2">Nama</th>
                     <th className="text-left p-2">Asnaf</th>
                     <th className="text-center p-2">Skor</th>
-                    <th className="text-right p-2">Estimasi</th>
+                    <th className="text-right p-2">Nominal Bantuan</th>
                     <th className="text-left p-2">Status</th>
                   </tr>
                 </thead>
@@ -372,12 +384,19 @@ export function AllocationWizard({
                               <Input
                                 type="number"
                                 min="0"
-                                value={sel?.customAmount ?? c.estimatedAmount}
+                                value={sel?.customAmount ?? perBeneficiary(c)}
                                 onChange={(e) => updateAmount(c.assessmentId, Number(e.target.value))}
                                 className="h-7 text-xs w-32 ml-auto"
                               />
                             ) : (
-                              <span className="text-muted-foreground">{formatRupiah(c.estimatedAmount)}</span>
+                              <div className="text-right">
+                                <span className="font-medium">{formatRupiah(perBeneficiary(c))}</span>
+                                {c.estimatedAmount > 0 && (
+                                  <p className="text-[10px] text-muted-foreground">
+                                    est. butuh {formatRupiah(c.estimatedAmount)}
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td className="p-2">

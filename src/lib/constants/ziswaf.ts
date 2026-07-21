@@ -100,6 +100,24 @@ export const ASSISTANCE_TYPE_LABELS: Record<AssistanceType, string> = {
   lainnya: "Lainnya",
 };
 
+/**
+ * Nominal bantuan standar per penerima menurut jenis bantuan (rupiah).
+ * Dipakai sebagai default `amount_per_beneficiary` saat membuat program.
+ * Angka acuan lapangan — lembaga bebas menyesuaikan saat membuat program.
+ */
+export const ASSISTANCE_DEFAULT_AMOUNT: Record<AssistanceType, number> = {
+  sembako: 200_000,
+  beasiswa: 1_000_000,
+  modal_usaha: 3_000_000,
+  kesehatan: 750_000,
+  tunai: 500_000,
+  pelatihan: 1_500_000,
+  dakwah: 500_000,
+  rumah_layak: 5_000_000,
+  kemanusiaan: 500_000,
+  lainnya: 300_000,
+};
+
 // ── ASSESSMENT STATUS (mengganti PROPOSAL_STATUS) ────────
 export type AssessmentStatus = "PENDING" | "APPROVED" | "REJECTED" | "ARCHIVED";
 

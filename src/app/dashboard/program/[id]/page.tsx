@@ -225,6 +225,7 @@ export default async function ProgramDetailPage({ params }: PageProps) {
             programName={program.name}
             fundType={program.fund_type}
             assistanceType={program.assistance_type}
+            amountPerBeneficiary={Number(program.amount_per_beneficiary ?? 0)}
             remainingBudget={remaining}
             poolBalance={poolBalance}
             initialCandidates={candidates ?? []}

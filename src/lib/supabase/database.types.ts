@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -53,15 +55,57 @@ export type Database = {
           status?: string
         }
         Relationships: [
-          { foreignKeyName: "allocations_assessment_id_fkey"; columns: ["assessment_id"]; isOneToOne: false; referencedRelation: "mustahik_assessments"; referencedColumns: ["id"] },
-          { foreignKeyName: "allocations_batch_id_fkey"; columns: ["batch_id"]; isOneToOne: false; referencedRelation: "disbursement_batches"; referencedColumns: ["id"] },
-          { foreignKeyName: "allocations_program_id_fkey"; columns: ["program_id"]; isOneToOne: false; referencedRelation: "programs"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "allocations_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "mustahik_assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "allocations_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "disbursement_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "allocations_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
         ]
       }
       asnaf_categories: {
-        Row: { code: string; description: string | null; id: string; name: string; name_arabic: string | null; quran_reference: string | null; sort_order: number }
-        Insert: { code: string; description?: string | null; id?: string; name: string; name_arabic?: string | null; quran_reference?: string | null; sort_order?: number }
-        Update: { code?: string; description?: string | null; id?: string; name?: string; name_arabic?: string | null; quran_reference?: string | null; sort_order?: number }
+        Row: {
+          code: string
+          description: string | null
+          id: string
+          name: string
+          name_arabic: string | null
+          quran_reference: string | null
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          description?: string | null
+          id?: string
+          name: string
+          name_arabic?: string | null
+          quran_reference?: string | null
+          sort_order?: number
+        }
+        Update: {
+          code?: string
+          description?: string | null
+          id?: string
+          name?: string
+          name_arabic?: string | null
+          quran_reference?: string | null
+          sort_order?: number
+        }
         Relationships: []
       }
       assistance_log: {
@@ -107,7 +151,43 @@ export type Database = {
           period_start?: string
           program_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "assistance_log_allocation_id_fkey"
+            columns: ["allocation_id"]
+            isOneToOne: false
+            referencedRelation: "allocations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistance_log_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "disbursement_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistance_log_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistance_log_mustahik_id_fkey"
+            columns: ["mustahik_id"]
+            isOneToOne: false
+            referencedRelation: "mustahik_registry"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistance_log_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_ledger: {
         Row: {
@@ -140,7 +220,15 @@ export type Database = {
           institution_id?: string | null
           payload?: Json
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "audit_ledger_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       disbursement_batches: {
         Row: {
@@ -191,12 +279,48 @@ export type Database = {
           total_amount?: number
           verified_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "disbursement_batches_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disbursement_batches_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       distribution_sectors: {
-        Row: { code: string; description: string | null; id: string; name: string; sort_order: number | null; type: string }
-        Insert: { code: string; description?: string | null; id?: string; name: string; sort_order?: number | null; type: string }
-        Update: { code?: string; description?: string | null; id?: string; name?: string; sort_order?: number | null; type?: string }
+        Row: {
+          code: string
+          description: string | null
+          id: string
+          name: string
+          sort_order: number | null
+          type: string
+        }
+        Insert: {
+          code: string
+          description?: string | null
+          id?: string
+          name: string
+          sort_order?: number | null
+          type: string
+        }
+        Update: {
+          code?: string
+          description?: string | null
+          id?: string
+          name?: string
+          sort_order?: number | null
+          type?: string
+        }
         Relationships: []
       }
       donations: {
@@ -257,7 +381,15 @@ export type Database = {
           recorded_by?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "donations_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       field_workers: {
         Row: {
@@ -305,19 +437,68 @@ export type Database = {
           telegram_chat_id?: number | null
           telegram_username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "field_workers_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       institution_types: {
-        Row: { code: string; description: string | null; id: string; name: string }
-        Insert: { code: string; description?: string | null; id?: string; name: string }
-        Update: { code?: string; description?: string | null; id?: string; name?: string }
+        Row: {
+          code: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          code: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          code?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
         Relationships: []
       }
       institution_users: {
-        Row: { created_at: string | null; id: string; institution_id: string; role: string; user_id: string }
-        Insert: { created_at?: string | null; id?: string; institution_id: string; role: string; user_id: string }
-        Update: { created_at?: string | null; id?: string; institution_id?: string; role?: string; user_id?: string }
-        Relationships: []
+        Row: {
+          created_at: string | null
+          id: string
+          institution_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          institution_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          institution_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "institution_users_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       institutions: {
         Row: {
@@ -377,7 +558,22 @@ export type Database = {
           updated_at?: string | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "institutions_institution_type_id_fkey"
+            columns: ["institution_type_id"]
+            isOneToOne: false
+            referencedRelation: "institution_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "institutions_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mustahik_assessments: {
         Row: {
@@ -440,7 +636,36 @@ export type Database = {
           submitted_at?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mustahik_assessments_field_verified_by_fkey"
+            columns: ["field_verified_by"]
+            isOneToOne: false
+            referencedRelation: "field_workers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mustahik_assessments_field_worker_id_fkey"
+            columns: ["field_worker_id"]
+            isOneToOne: false
+            referencedRelation: "field_workers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mustahik_assessments_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mustahik_assessments_mustahik_id_fkey"
+            columns: ["mustahik_id"]
+            isOneToOne: false
+            referencedRelation: "mustahik_registry"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mustahik_registry: {
         Row: {
@@ -494,10 +719,33 @@ export type Database = {
           phone?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mustahik_registry_first_registered_by_institution_id_fkey"
+            columns: ["first_registered_by_institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mustahik_registry_kecamatan_id_fkey"
+            columns: ["kecamatan_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mustahik_registry_pdp_consent_collected_by_institution_id_fkey"
+            columns: ["pdp_consent_collected_by_institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       programs: {
         Row: {
+          amount_per_beneficiary: number
           assistance_type: string
           beneficiary_target: number | null
           budget: number
@@ -516,6 +764,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          amount_per_beneficiary?: number
           assistance_type: string
           beneficiary_target?: number | null
           budget?: number
@@ -534,6 +783,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          amount_per_beneficiary?: number
           assistance_type?: string
           beneficiary_target?: number | null
           budget?: number
@@ -551,7 +801,15 @@ export type Database = {
           target_asnaf?: string[]
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "programs_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       regions: {
         Row: {
@@ -590,12 +848,44 @@ export type Database = {
           type?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "regions_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ziswaf_categories: {
-        Row: { category: string; description: string | null; id: string; is_mandatory: boolean | null; name: string; sort_order: number | null; subcategory: string }
-        Insert: { category: string; description?: string | null; id?: string; is_mandatory?: boolean | null; name: string; sort_order?: number | null; subcategory: string }
-        Update: { category?: string; description?: string | null; id?: string; is_mandatory?: boolean | null; name?: string; sort_order?: number | null; subcategory?: string }
+        Row: {
+          category: string
+          description: string | null
+          id: string
+          is_mandatory: boolean | null
+          name: string
+          sort_order: number | null
+          subcategory: string
+        }
+        Insert: {
+          category: string
+          description?: string | null
+          id?: string
+          is_mandatory?: boolean | null
+          name: string
+          sort_order?: number | null
+          subcategory: string
+        }
+        Update: {
+          category?: string
+          description?: string | null
+          id?: string
+          is_mandatory?: boolean | null
+          name?: string
+          sort_order?: number | null
+          subcategory?: string
+        }
         Relationships: []
       }
     }
@@ -648,7 +938,134 @@ export type Database = {
         Returns: boolean
       }
     }
-    Enums: { [_ in never]: never }
-    CompositeTypes: { [_ in never]: never }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
