@@ -2,7 +2,7 @@
 
 import { useState, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import {
   Card,
   CardContent,
@@ -105,46 +105,65 @@ export function BulkImportDonations({ institutionId }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function downloadTemplate() {
-    const csv = Papa.unparse({ fields: TEMPLATE_HEADERS, data: TEMPLATE_SAMPLE });
-    // Prepend BOM so Excel opens UTF-8 correctly
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "template-donasi-ziswafhub.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    const aoa = [TEMPLATE_HEADERS, ...TEMPLATE_SAMPLE];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    // Lebar kolom biar rapi
+    ws["!cols"] = TEMPLATE_HEADERS.map((h) => ({ wch: Math.max(14, h.length + 2) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Donasi");
+    XLSX.writeFile(wb, "template-donasi-ziswafhub.xlsx");
     toast.success("Template diunduh", { description: "Isi file lalu upload kembali di sini." });
   }
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
     setResult(null);
     setParseError(null);
     setParsedRows(null);
     setFileName(file.name);
 
-    Papa.parse<BulkDonationRow>(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => normalizeHeader(h),
-      complete: (res) => {
-        const rows = (res.data ?? []).filter(
-          (r) => r && Object.values(r).some((v) => String(v ?? "").trim() !== "")
-        );
-        if (rows.length === 0) {
-          setParseError("File kosong atau tidak ada baris data yang valid.");
-          return;
-        }
-        const headers = res.meta.fields ?? [];
-        if (!headers.includes("amount") || !headers.includes("fund_type")) {
-          setParseError("Kolom wajib 'jumlah' dan 'jenis_dana' tidak ditemukan. Gunakan template.");
-          return;
-        }
-        setParsedRows(rows);
-        toast.info(`${rows.length} baris terbaca`, { description: "Periksa lalu klik Import." });
-      },
-      error: (err) => setParseError(`Gagal membaca file: ${err.message}`),
-    });
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) {
+        setParseError("File tidak memiliki sheet yang bisa dibaca.");
+        return;
+      }
+
+      // Baca sebagai array-of-arrays supaya bisa normalisasi header dulu
+      const aoa = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, blankrows: false });
+      if (aoa.length < 2) {
+        setParseError("File kosong atau hanya berisi header tanpa data.");
+        return;
+      }
+
+      const rawHeaders = (aoa[0] ?? []).map((h) => String(h ?? ""));
+      const headers = rawHeaders.map(normalizeHeader);
+      if (!headers.includes("amount") || !headers.includes("fund_type")) {
+        setParseError("Kolom wajib 'jumlah' dan 'jenis_dana' tidak ditemukan. Gunakan template.");
+        return;
+      }
+
+      const rows: BulkDonationRow[] = [];
+      for (let i = 1; i < aoa.length; i++) {
+        const cells = aoa[i] ?? [];
+        if (cells.every((c) => String(c ?? "").trim() === "")) continue;
+        const obj: Record<string, unknown> = {};
+        headers.forEach((key, idx) => {
+          obj[key] = cells[idx];
+        });
+        rows.push(obj as unknown as BulkDonationRow);
+      }
+
+      if (rows.length === 0) {
+        setParseError("Tidak ada baris data yang valid.");
+        return;
+      }
+      setParsedRows(rows);
+      toast.info(`${rows.length} baris terbaca`, { description: "Periksa lalu klik Import." });
+    } catch (err) {
+      setParseError(`Gagal membaca file: ${err instanceof Error ? err.message : "format tidak dikenali"}`);
+    }
   }
 
   function reset() {
@@ -176,10 +195,10 @@ export function BulkImportDonations({ institutionId }: Props) {
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <FileSpreadsheet className="size-5" />
-          Import Donasi Massal (CSV)
+          Import Donasi Massal (Excel)
         </CardTitle>
         <CardDescription>
-          Upload banyak donasi sekaligus dari file CSV. Unduh template dulu agar format kolom sesuai.
+          Upload banyak donasi sekaligus dari file Excel (.xlsx). Unduh template dulu agar format kolom sesuai.
           Kolom: jumlah, jenis_dana, channel, nama_donor, email_donor, hp_donor, anonim (ya/tidak), catatan.
         </CardDescription>
       </CardHeader>
@@ -197,12 +216,12 @@ export function BulkImportDonations({ institutionId }: Props) {
             disabled={pending}
           >
             <Upload className="size-4 mr-1.5" />
-            Pilih File CSV
+            Pilih File Excel
           </Button>
           <input
             ref={inputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
