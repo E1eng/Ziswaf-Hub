@@ -28,21 +28,71 @@ interface Props {
   institutionId: string;
 }
 
+/**
+ * Peta header (Indonesia & Inggris) → nama field internal yang dipakai
+ * server action recordDonationsBulk. Membuat template ramah pengguna
+ * sekaligus tetap menerima file lama berbahasa Inggris.
+ */
+const HEADER_MAP: Record<string, string> = {
+  // jumlah
+  jumlah: "amount",
+  nominal: "amount",
+  amount: "amount",
+  // jenis dana
+  jenis_dana: "fund_type",
+  "jenis dana": "fund_type",
+  dana: "fund_type",
+  fund_type: "fund_type",
+  // channel
+  channel: "channel",
+  kanal: "channel",
+  metode: "channel",
+  // nama donor
+  nama_donor: "donor_name",
+  "nama donor": "donor_name",
+  nama: "donor_name",
+  donor_name: "donor_name",
+  // email
+  email_donor: "donor_email",
+  "email donor": "donor_email",
+  email: "donor_email",
+  donor_email: "donor_email",
+  // hp
+  hp_donor: "donor_phone",
+  "hp donor": "donor_phone",
+  hp: "donor_phone",
+  telepon: "donor_phone",
+  donor_phone: "donor_phone",
+  // anonim
+  anonim: "is_anonymous",
+  anonymous: "is_anonymous",
+  is_anonymous: "is_anonymous",
+  // catatan
+  catatan: "notes",
+  keterangan: "notes",
+  notes: "notes",
+};
+
+function normalizeHeader(h: string): string {
+  const key = h.trim().toLowerCase();
+  return HEADER_MAP[key] ?? key;
+}
+
 const TEMPLATE_HEADERS = [
-  "amount",
-  "fund_type",
+  "jumlah",
+  "jenis_dana",
   "channel",
-  "donor_name",
-  "donor_email",
-  "donor_phone",
-  "is_anonymous",
-  "notes",
+  "nama_donor",
+  "email_donor",
+  "hp_donor",
+  "anonim",
+  "catatan",
 ];
 
 const TEMPLATE_SAMPLE = [
-  ["1000000", "zakat", "transfer", "Ahmad Fauzi", "ahmad@example.com", "081234567890", "false", "Zakat maal"],
-  ["500000", "infaq", "cash", "Siti Aminah", "", "", "false", "Infaq Jumat"],
-  ["250000", "sedekah", "ewallet", "", "", "", "true", "Donatur anonim"],
+  ["1000000", "zakat", "transfer", "Ahmad Fauzi", "ahmad@example.com", "081234567890", "tidak", "Zakat maal"],
+  ["500000", "infaq", "cash", "Siti Aminah", "", "", "tidak", "Infaq Jumat"],
+  ["250000", "sedekah", "ewallet", "", "", "", "ya", "Donatur anonim"],
 ];
 
 export function BulkImportDonations({ institutionId }: Props) {
@@ -76,7 +126,7 @@ export function BulkImportDonations({ institutionId }: Props) {
     Papa.parse<BulkDonationRow>(file, {
       header: true,
       skipEmptyLines: true,
-      transformHeader: (h) => h.trim().toLowerCase(),
+      transformHeader: (h) => normalizeHeader(h),
       complete: (res) => {
         const rows = (res.data ?? []).filter(
           (r) => r && Object.values(r).some((v) => String(v ?? "").trim() !== "")
@@ -87,7 +137,7 @@ export function BulkImportDonations({ institutionId }: Props) {
         }
         const headers = res.meta.fields ?? [];
         if (!headers.includes("amount") || !headers.includes("fund_type")) {
-          setParseError("Kolom wajib 'amount' dan 'fund_type' tidak ditemukan. Gunakan template.");
+          setParseError("Kolom wajib 'jumlah' dan 'jenis_dana' tidak ditemukan. Gunakan template.");
           return;
         }
         setParsedRows(rows);
@@ -130,6 +180,7 @@ export function BulkImportDonations({ institutionId }: Props) {
         </CardTitle>
         <CardDescription>
           Upload banyak donasi sekaligus dari file CSV. Unduh template dulu agar format kolom sesuai.
+          Kolom: jumlah, jenis_dana, channel, nama_donor, email_donor, hp_donor, anonim (ya/tidak), catatan.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
